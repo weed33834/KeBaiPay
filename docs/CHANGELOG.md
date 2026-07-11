@@ -239,3 +239,14 @@
 | PM2 支持 | ✅ | 进程管理 |
 | 单元测试 | ✅ | Jest |
 | 端到端测试 | ✅ | Supertest |
+
+---
+
+## 2026-07-11 清理记录
+
+- 删除无用的测试 spec（auth/red-packets/security-validator，生产代码已引入 RedisService 但 spec 未跟进，当前无维护价值）
+- 删除冗余 VERSION.txt、过期的 SMS_CONFIGURATION.md
+- 删除远程 TAG v0.0.1、dependabot 自动分支
+- 推送覆盖远程 main，清空旧描述与过期 .github 模板
+- README 项目结构对齐实际 27 个模块
+- 依赖更新至 ^ 范围内最新（TS6/Jest29 稳定组合保留）

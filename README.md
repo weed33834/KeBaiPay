@@ -573,23 +573,35 @@ npm run migrate:deploy# 生产环境部署迁移
 
 ```
 src/
-  auth/          用户 JWT 鉴权
-  users/         用户、实名、支付密码
-  accounts/      账户余额、资金流水
-  transactions/  充值、交易订单
-  transfers/     转账
-  withdrawals/   提现
-  red-packets/   红包
-  qr-codes/      收款码
-  bills/         账单
-  merchants/     商户入驻与应用
-  cashier/       统一收银台
-  open-api/      开放 API 与签名验证
-  admin/         管理后台
-  finance/       财务统计与对账
-  prisma/        Prisma 客户端
-public/          H5 页面（前端源码在这）
-prisma/          Prisma schema + migrations + seed
+  auth/            用户 JWT 鉴权
+  users/           用户、实名、支付密码
+  accounts/        账户余额、资金流水（ledger）
+  transactions/    充值、交易订单
+  transfers/       转账
+  withdrawals/     提现
+  merchants/       商户入驻与应用
+  merchant/        商户配置
+  cashier/         统一收银台
+  open-api/        开放 API 与 HMAC 签名验证
+  admin/           管理后台
+  finance/         财务统计与对账
+  payment-channels/ 微信 / 支付宝支付渠道
+  webhooks/        支付渠道回调
+  redis/           Redis 封装（分布式锁 / 缓存）
+  crypto/          敏感数据 AES-256-GCM 加解密
+  security/        启动安全校验、JWT、频率限制
+  risk/            风控引擎
+  health/          健康检查（存活 / 就绪 / 渠道）
+  common/          中间件、拦截器、工具函数
+  prisma/          Prisma 客户端
+  notifications/   通知（邮件等）
+  audit/           审计日志
+  sms/             短信
+  red-packets/     红包
+  qr-codes/        收款码
+  bills/           账单
+public/             H5 钱包页面（前端静态资源）
+prisma/             Prisma schema + migrations + seed
 ```
 
 ---

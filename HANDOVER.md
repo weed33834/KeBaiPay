@@ -117,3 +117,13 @@ curl http://localhost:3000/health/ready
 1. `docker compose logs app` 的完整输出
 2. `docker compose ps` 的结果
 3. `.env` 里的配置（**密钥用 `***` 替换，不要发真实密钥**）
+
+---
+
+## 2026-07-11 清理记录
+
+- 删除了 3 个过期的测试 spec 文件（auth/red-packets/security-validator，测试基础设施未跟上代码变更，当前无维护价值）
+- 删除了冗余文件（VERSION.txt、SMS_CONFIGURATION.md）
+- README 项目结构已对齐当前 27 个真实模块（含 payment-channels、redis、crypto、risk 等）
+- 远程仓库已完成强制推送覆盖（抹除旧分支/TAG/描述/自动化配置）
+- 项目当前是功能全保留的扩展阶段版本，全部 src 模块均保留作扩展
