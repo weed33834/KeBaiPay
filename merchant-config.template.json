@@ -1,0 +1,26 @@
+{
+  "appName": "我的应用",
+  "appDomain": "example.com",
+  "appDescription": "应用描述",
+  
+  "notifyUrl": "https://example.com/payment/notify",
+  "returnUrl": "https://example.com/payment/return",
+  
+  "ipWhitelist": [],
+  "enableSignature": true,
+  
+  "emailNotify": true,
+  "smsNotify": false,
+  
+  "customParams": {},
+  
+  "_comment": "配置说明",
+  "_help": {
+    "notifyUrl": "支付成功后的回调地址，必须是HTTPS",
+    "returnUrl": "支付完成后的跳转地址",
+    "ipWhitelist": "API调用白名单，为空则不限制",
+    "enableSignature": "是否启用签名验证",
+    "emailNotify": "是否开启邮件通知",
+    "smsNotify": "是否开启短信通知"
+  }
+}

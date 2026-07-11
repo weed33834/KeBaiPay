@@ -1,0 +1,480 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id             String         @id @default(uuid())
+  nickname       String
+  phone          String?        @unique
+  email          String?        @unique
+  loginPassword  String         @map("login_password")
+  payPassword    String?        @map("pay_password")
+  avatar         String?
+  status         String         @default("ACTIVE")
+  realNameStatus String         @default("UNVERIFIED") @map("real_name_status")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  account          Account?
+  identity         IdentityVerification?
+  merchant         Merchant?
+  riskLevel        String        @default("LOW") @map("risk_level")
+  loginLogs        LoginLog[]
+  riskEvents       RiskEvent[]
+  fromTransactions TransactionOrder[] @relation("FromUser")
+  toTransactions   TransactionOrder[] @relation("ToUser")
+  bills            Bill[]
+  withdrawals      WithdrawalOrder[]
+  redPackets       RedPacket[]
+  qrCodes          QrCode[]
+
+  @@map("users")
+}
+
+model Merchant {
+  id                String        @id @default(uuid())
+  userId            String        @unique @map("user_id")
+  merchantNo        String        @unique @map("merchant_no")
+  merchantName      String        @map("merchant_name")
+  merchantType      String        @default("PERSONAL") @map("merchant_type")
+  businessLicenseNo String?       @map("business_license_no")
+  contactName       String?       @map("contact_name")
+  contactPhone      String?       @map("contact_phone")
+  settleAccount     String?       @map("settle_account")
+  status            String        @default("PENDING") @map("status")
+  rejectReason      String?       @map("reject_reason")
+  reviewedBy        String?       @map("reviewed_by")
+  reviewedAt        DateTime?     @map("reviewed_at")
+  payRate           Int           @default(60) @map("pay_rate")
+  withdrawRate      Int           @default(60) @map("withdraw_rate")
+  dailyLimit        Int           @default(10000000) @map("daily_limit")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id])
+  apps            MerchantApp[]
+  paymentOrders   PaymentOrder[]
+  qrCodes         QrCode[]
+
+  @@index([status])
+  @@map("merchants")
+}
+
+model IdentityVerification {
+  id        String         @id @default(uuid())
+  userId    String         @unique @map("user_id")
+  realName  String         @map("real_name")
+  idCard    String         @unique @map("id_card")
+  status    String         @default("PENDING")
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([status])
+  @@map("identity_verifications")
+}
+
+model Account {
+  id               String        @id @default(uuid())
+  userId           String        @unique @map("user_id")
+  availableBalance Int           @default(0) @map("available_balance")
+  frozenBalance    Int           @default(0) @map("frozen_balance")
+  totalBalance     Int           @default(0) @map("total_balance")
+  status           String        @default("ACTIVE")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  user     User            @relation(fields: [userId], references: [id])
+  ledgers  AccountLedger[]
+
+  @@index([status])
+  @@map("accounts")
+}
+
+model AccountLedger {
+  id            String      @id @default(uuid())
+  accountId     String      @map("account_id")
+  transactionId String      @map("transaction_id")
+  type          String
+  amount        Int
+  balanceBefore Int         @map("balance_before")
+  balanceAfter  Int         @map("balance_after")
+  direction     String
+  remark        String?
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  account Account @relation(fields: [accountId], references: [id])
+
+  @@index([accountId])
+  @@index([transactionId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("account_ledgers")
+}
+
+model TransactionOrder {
+  id             String            @id @default(uuid())
+  orderNo        String            @unique @map("order_no")
+  type           String
+  status         String            @default("PENDING")
+  amount         Int
+  fee            Int               @default(0)
+  fromUserId     String?           @map("from_user_id")
+  toUserId       String?           @map("to_user_id")
+  remark         String?
+  relatedOrderNo String?           @map("related_order_no")
+  idempotencyKey String?           @unique @map("idempotency_key")
+  channel        String?
+  channelOrderNo String?           @map("channel_order_no")
+  expiresAt      DateTime?         @map("expires_at")
+  completedAt    DateTime?         @map("completed_at")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  fromUser User?  @relation("FromUser", fields: [fromUserId], references: [id])
+  toUser   User?  @relation("ToUser", fields: [toUserId], references: [id])
+
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([channelOrderNo])
+  @@index([type])
+  @@index([relatedOrderNo])
+  @@index([status, completedAt])
+  @@index([createdAt])
+  @@map("transaction_orders")
+}
+
+model Bill {
+  id            String        @id @default(uuid())
+  userId        String        @map("user_id")
+  transactionId String        @map("transaction_id")
+  type          String
+  direction     String
+  amount        Int
+  counterparty  String?
+  remark        String?
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([userId, createdAt])
+  @@index([transactionId])
+  @@index([createdAt])
+  @@index([type])
+  @@map("bills")
+}
+
+model WithdrawalOrder {
+  id          String           @id @default(uuid())
+  orderNo     String           @unique @map("order_no")
+  userId      String           @map("user_id")
+  amount      Int
+  fee         Int              @default(0)
+  actualAmount Int             @map("actual_amount")
+  status      String           @default("PENDING")
+  channel     String           @default("BANK")
+  channelOrderNo String?       @map("channel_order_no")
+  channelAccount String?       @map("channel_account")
+  reviewedBy  String?          @map("reviewed_by")
+  reviewedAt  DateTime?        @map("reviewed_at")
+  remark      String?
+  idempotencyKey String?       @unique @map("idempotency_key")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([channelOrderNo])
+  @@index([status, reviewedAt])
+  @@map("withdrawal_orders")
+}
+
+model RedPacket {
+  id           String           @id @default(uuid())
+  packetNo     String           @unique @map("packet_no")
+  senderId     String           @map("sender_id")
+  amount       Int
+  status       String           @default("PENDING")
+  remark       String?
+  expiresAt    DateTime         @map("expires_at")
+  receivedAt   DateTime?        @map("received_at")
+  returnedAt   DateTime?        @map("returned_at")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+
+  sender   User              @relation(fields: [senderId], references: [id])
+  records  RedPacketRecord[]
+
+  @@index([senderId])
+  @@index([status, expiresAt])
+  @@map("red_packets")
+}
+
+model RedPacketRecord {
+  id          String              @id @default(uuid())
+  redPacketId String              @map("red_packet_id")
+  receiverId  String              @map("receiver_id")
+  amount      Int
+  type        String
+  createdAt   DateTime            @default(now()) @map("created_at")
+
+  redPacket RedPacket @relation(fields: [redPacketId], references: [id])
+
+  @@index([redPacketId])
+  @@index([receiverId])
+  @@unique([redPacketId, receiverId])
+  @@map("red_packet_records")
+}
+
+model QrCode {
+  id         String       @id @default(uuid())
+  code       String       @unique
+  userId     String       @map("user_id")
+  merchantId String?      @map("merchant_id")
+  type       String       @default("PERSONAL")
+  amount     Int?
+  remark     String?
+  status     String       @default("ACTIVE")
+  expiresAt  DateTime?
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id])
+  merchant Merchant? @relation(fields: [merchantId], references: [id])
+
+  @@index([userId])
+  @@index([merchantId])
+  @@index([status])
+  @@map("qr_codes")
+}
+
+model MerchantApp {
+  id          String    @id @default(uuid())
+  merchantId  String    @map("merchant_id")
+  appId       String    @unique @map("app_id")
+  appSecret   String    @map("app_secret")
+  name        String
+  callbackUrl String?   @map("callback_url")
+  status      String    @default("ACTIVE")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id])
+
+  @@index([merchantId])
+  @@index([status])
+  @@map("merchant_apps")
+}
+
+model PaymentOrder {
+  id              String            @id @default(uuid())
+  orderNo         String            @unique @map("order_no")
+  merchantId      String            @map("merchant_id")
+  merchantOrderNo String            @map("merchant_order_no")
+  appId           String?           @map("app_id")
+  amount          Int
+  fee             Int               @default(0)
+  currency        String            @default("CNY")
+  subject         String
+  body            String?
+  status          String            @default("PENDING")
+  payerId         String?           @map("payer_id")
+  paidAt          DateTime?         @map("paid_at")
+  expiredAt       DateTime?         @map("expired_at")
+  callbackUrl     String?           @map("callback_url")
+  notifyStatus    String            @default("PENDING") @map("notify_status")
+  notifyCount     Int               @default(0) @map("notify_count")
+  extra           String?
+  idempotencyKey  String?           @unique @map("idempotency_key")
+  refundAmount    Int               @default(0) @map("refund_amount")
+  refundedAt      DateTime?         @map("refunded_at")
+  refundedBy      String?           @map("refunded_by")
+  refundReason    String?           @map("refund_reason")
+  settledAt       DateTime?         @map("settled_at")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id])
+
+  @@index([merchantId])
+  @@index([status])
+  @@index([payerId])
+  @@index([status, paidAt])
+  @@index([merchantId, createdAt])
+  @@index([notifyStatus])
+  @@index([settledAt])
+  @@index([status, settledAt, paidAt])
+  @@unique([merchantId, merchantOrderNo])
+  @@map("payment_orders")
+}
+
+model AdminUser {
+  id        String     @id @default(uuid())
+  username  String     @unique
+  password  String
+  nickname  String?
+  role      String     @default("SUPER_ADMIN")
+  status    String     @default("ACTIVE")
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  @@map("admin_users")
+}
+
+model LoginLog {
+  id        String   @id @default(uuid())
+  userId    String?  @map("user_id")
+  ip        String?
+  userAgent String?  @map("user_agent")
+  success   Boolean
+  reason    String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("login_logs")
+}
+
+model RiskEvent {
+  id          String     @id @default(uuid())
+  userId      String     @map("user_id")
+  type        String
+  level       String
+  description String
+  handled     Boolean    @default(false)
+  handledBy   String?    @map("handled_by")
+  handledAt   DateTime?  @map("handled_at")
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([level])
+  @@index([handled])
+  @@index([type])
+  @@index([createdAt])
+  @@map("risk_events")
+}
+
+model DailySnapshot {
+  id              String   @id @default(uuid())
+  date            String   @unique
+  totalAssets     Int      @map("total_assets")
+  totalIncome     Int      @default(0) @map("total_income")
+  totalExpense    Int      @default(0) @map("total_expense")
+  totalFee        Int      @default(0) @map("total_fee")
+  transactionCount Int     @default(0) @map("transaction_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("daily_snapshots")
+}
+
+model DailyLimitUsage {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  limitType  String   @map("limit_type")
+  date       String
+  usedAmount Int      @default(0) @map("used_amount")
+  version    Int      @default(0)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, limitType, date])
+  @@index([userId])
+  @@map("daily_limit_usages")
+}
+
+model ReconciliationReport {
+  id          String   @id @default(uuid())
+  date        String   @unique
+  status      String   @default("PENDING")
+  differences String?
+  summary     String?
+  checkedBy   String?  @map("checked_by")
+  checkedAt   DateTime? @map("checked_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("reconciliation_reports")
+}
+
+model SystemConfig {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("system_configs")
+}
+
+model AdminOperationLog {
+  id           String   @id @default(uuid())
+  adminId      String   @map("admin_id")
+  action       String
+  target       String?  @map("target")
+  detail       String?
+  ip           String?
+  userAgent    String?  @map("user_agent")
+  hash         String?  @unique
+  previousHash String?  @map("previous_hash")
+  seq          Int?     @default(0)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([adminId])
+  @@index([createdAt])
+  @@index([action])
+  @@map("admin_operation_logs")
+}
+
+model PaymentChannelConfig {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  name      String
+  type      String
+  enabled   Boolean  @default(false)
+  config    String
+  priority  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([enabled])
+  @@index([type])
+  @@map("payment_channel_configs")
+}
+
+model JournalEntry {
+  id          String   @id @default(uuid())
+  journalId   String   @map("journal_id")
+  accountCode String   @map("account_code")
+  debit       Int      @default(0)
+  credit      Int      @default(0)
+  memo        String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([journalId])
+  @@index([accountCode])
+  @@map("journal_entries")
+}
+
+model PlatformAccount {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  name      String
+  balance   Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_accounts")
+}

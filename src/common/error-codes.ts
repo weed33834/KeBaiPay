@@ -1,0 +1,255 @@
+/**
+ * Kebaipay 统一错误码
+ *
+ * 范围：KB001 ~ KB999
+ * - KB001 ~ KB099：系统/通用
+ * - KB100 ~ KB199：认证/授权/签名
+ * - KB200 ~ KB299：用户/账户
+ * - KB300 ~ KB399：商户
+ * - KB400 ~ KB499：参数/请求错误
+ * - KB500 ~ KB599：资金操作（转账、充值、提现）
+ * - KB600 ~ KB699：支付订单/收银台/红包/收款码
+ * - KB700 ~ KB799：开放 API / 渠道回调
+ * - KB800 ~ KB899：风控（复用 KB403 表达通用禁止，具体风控拦截保留动态规则名）
+ * - KB900 ~ KB999：管理后台/财务
+ */
+export const KBErrorCodes = {
+  // 系统/通用
+  UNKNOWN_ERROR: 'KB001',
+  IDENTITY_RECORD_NOT_FOUND: 'KB002',
+  DAILY_LIMIT_EXCEEDED: 'KB003',
+  ACCOUNT_NOT_FOUND: 'KB004',
+  INSUFFICIENT_BALANCE: 'KB005',
+  ADJUSTMENT_AMOUNT_INVALID: 'KB006',
+  ADJUSTMENT_REASON_REQUIRED: 'KB007',
+  REJECT_REASON_REQUIRED: 'KB008',
+
+  // 认证/授权/签名
+  MISSING_PHONE_OR_EMAIL: 'KB101',
+  INVALID_CREDENTIALS: 'KB102',
+  AUTH_FAILED: 'KB103',
+  ACCOUNT_FROZEN: 'KB104',
+
+  // 用户/账户
+  USER_NOT_FOUND: 'KB201',
+  ALREADY_VERIFIED: 'KB202',
+  VERIFICATION_PENDING: 'KB203',
+  PAY_PASSWORD_LOCKED: 'KB205',
+  PAY_PASSWORD_NOT_SET: 'KB206',
+  PAY_PASSWORD_LOCKED_OUT: 'KB207',
+  PAY_PASSWORD_INCORRECT: 'KB208',
+  IDENTITY_NOT_FOUND: 'KB209',
+  IDENTITY_MISMATCH: 'KB210',
+  REAL_NAME_REQUIRED: 'KB212',
+  PAYEE_NOT_FOUND: 'KB213',
+  PAYEE_NOT_VERIFIED: 'KB214',
+  IDENTITY_NOT_PENDING: 'KB215',
+
+  // 商户
+  MERCHANT_ALREADY_APPLIED: 'KB301',
+  MERCHANT_INFO_NOT_FOUND: 'KB302',
+  MERCHANT_NOT_MODIFIABLE: 'KB303',
+  MERCHANT_NOT_FOUND: 'KB304',
+  MERCHANT_AUDIT_PENDING_ONLY: 'KB305',
+  MERCHANT_PAY_RATE_INVALID: 'KB306',
+  MERCHANT_WITHDRAW_RATE_INVALID: 'KB307',
+  MERCHANT_DAILY_LIMIT_INVALID: 'KB308',
+  MERCHANT_CONFIG_NO_CHANGE: 'KB309',
+  MERCHANT_NOT_APPROVED: 'KB310',
+  MERCHANT_APP_NOT_FOUND: 'KB311',
+  QR_CODE_NOT_FOUND: 'KB312',
+
+  // 参数/请求错误
+  INVALID_PARAMETER: 'KB400',
+  AUTHENTICATION_FAILED: 'KB401',
+  FORBIDDEN: 'KB403',
+  RESOURCE_NOT_FOUND: 'KB404',
+
+  // 资金操作
+  TRANSFER_AMOUNT_INVALID: 'KB501',
+  TRANSFER_TO_SELF: 'KB502',
+  RECHARGE_AMOUNT_INVALID: 'KB503',
+  NO_RECHARGE_CHANNEL: 'KB504',
+  RECHARGE_CHANNEL_FAILED: 'KB505',
+  WITHDRAWAL_AMOUNT_INVALID: 'KB506',
+  WITHDRAWAL_ORDER_NOT_FOUND: 'KB507',
+  WITHDRAWAL_ORDER_STATUS_INVALID: 'KB508',
+  NO_PAYOUT_CHANNEL: 'KB509',
+  ORDER_ALREADY_HANDLED: 'KB510',
+  FROZEN_BALANCE_INSUFFICIENT: 'KB511',
+  PAYOUT_CHANNEL_FAILED: 'KB512',
+  CALLBACK_STATUS_INVALID: 'KB513',
+
+  // 支付订单/收银台/红包/收款码
+  MERCHANT_ORDER_NO_EXISTS: 'KB601',
+  EXPIRED_TIME_INVALID: 'KB602',
+  ORDER_NOT_FOUND: 'KB603',
+  MERCHANT_CANNOT_RECEIVE: 'KB604',
+  MERCHANT_USER_NOT_FOUND: 'KB605',
+  ORDER_STATUS_CHANGED: 'KB606',
+  CALLBACK_URL_NOT_SET: 'KB607',
+  CALLBACK_ALREADY_SUCCESS: 'KB608',
+  QR_CODE_NOT_MERCHANT: 'KB609',
+  QR_CODE_INVALID: 'KB610',
+  QR_CODE_PAY_SELF: 'KB611',
+  MERCHANT_STATUS_ABNORMAL: 'KB612',
+  RED_PACKET_AMOUNT_INVALID: 'KB613',
+  RED_PACKET_NOT_FOUND: 'KB614',
+  RED_PACKET_CLAIMED_OR_EXPIRED: 'KB615',
+  RED_PACKET_CLAIM_SELF: 'KB616',
+  RED_PACKET_EXPIRED: 'KB617',
+  RED_PACKET_STATUS_CHANGED: 'KB618',
+  QR_CODE_EXPIRED: 'KB619',
+  QR_CODE_USE_CASHIER: 'KB620',
+  IDEMPOTENCY_KEY_CONFLICT: 'KB621',
+
+  // 开放 API / 渠道回调
+  CALLBACK_CHANNEL_MISMATCH: 'KB701',
+  CALLBACK_CHANNEL_ORDER_NO_MISMATCH: 'KB702',
+  CALLBACK_URL_PROTOCOL_INVALID: 'KB703',
+  CALLBACK_URL_INTERNAL: 'KB704',
+  CALLBACK_URL_FORMAT_INVALID: 'KB705',
+  ORDER_AMOUNT_INVALID: 'KB711',
+  ORDER_EXPIRED_TIME_TOO_LATE: 'KB712',
+  ORDER_NOT_REFUNDABLE: 'KB713',
+  ORDER_FULLY_REFUNDED: 'KB714',
+  REFUND_AMOUNT_INVALID: 'KB715',
+  REFUND_AMOUNT_EXCEEDED: 'KB716',
+  MERCHANT_APP_DISABLED: 'KB717',
+
+  // 管理后台/财务
+  RISK_EVENT_NOT_FOUND: 'KB901',
+  JOURNAL_UNBALANCED: 'KB902',
+
+  // 管理员管理
+  ADMIN_USER_NOT_FOUND: 'KB910',
+  ADMIN_USERNAME_EXISTS: 'KB911',
+  ADMIN_CANNOT_DELETE_SELF: 'KB912',
+  ADMIN_OLD_PASSWORD_INCORRECT: 'KB913',
+  ADMIN_CONFIG_KEY_EXISTS: 'KB914',
+  ADMIN_CONFIG_KEY_NOT_FOUND: 'KB915',
+  ADMIN_INSUFFICIENT_PERMISSIONS: 'KB916',
+} as const
+
+export type KBErrorCode = (typeof KBErrorCodes)[keyof typeof KBErrorCodes]
+
+/**
+ * 默认错误消息表
+ */
+export const KBErrorMessages: Record<KBErrorCode, string> = {
+  [KBErrorCodes.UNKNOWN_ERROR]: '系统错误',
+  [KBErrorCodes.IDENTITY_RECORD_NOT_FOUND]: '实名记录不存在',
+  [KBErrorCodes.DAILY_LIMIT_EXCEEDED]: '超出单日限额',
+  [KBErrorCodes.ACCOUNT_NOT_FOUND]: '账户不存在',
+  [KBErrorCodes.INSUFFICIENT_BALANCE]: '余额不足',
+  [KBErrorCodes.ADJUSTMENT_AMOUNT_INVALID]: '调账金额不能为 0',
+  [KBErrorCodes.ADJUSTMENT_REASON_REQUIRED]: '调账必须填写原因',
+  [KBErrorCodes.REJECT_REASON_REQUIRED]: '拒绝审核必须填写原因',
+
+  [KBErrorCodes.MISSING_PHONE_OR_EMAIL]: '手机号或邮箱至少提供一个',
+  [KBErrorCodes.INVALID_CREDENTIALS]: '账号或密码错误',
+  [KBErrorCodes.AUTH_FAILED]: '认证失败',
+  [KBErrorCodes.ACCOUNT_FROZEN]: '账号已冻结',
+
+  [KBErrorCodes.USER_NOT_FOUND]: '用户不存在',
+  [KBErrorCodes.ALREADY_VERIFIED]: '已实名认证',
+  [KBErrorCodes.VERIFICATION_PENDING]: '实名审核中，请勿重复提交',
+  [KBErrorCodes.PAY_PASSWORD_LOCKED]: '支付密码已锁定',
+  [KBErrorCodes.PAY_PASSWORD_NOT_SET]: '未设置支付密码',
+  [KBErrorCodes.PAY_PASSWORD_LOCKED_OUT]: '支付密码错误次数过多，已锁定 15 分钟',
+  [KBErrorCodes.PAY_PASSWORD_INCORRECT]: '支付密码错误',
+  [KBErrorCodes.IDENTITY_NOT_FOUND]: '未找到实名信息',
+  [KBErrorCodes.IDENTITY_MISMATCH]: '实名信息不匹配',
+  [KBErrorCodes.REAL_NAME_REQUIRED]: '请先完成实名认证',
+  [KBErrorCodes.PAYEE_NOT_FOUND]: '收款用户不存在',
+  [KBErrorCodes.PAYEE_NOT_VERIFIED]: '对方未实名认证，无法收款',
+  [KBErrorCodes.IDENTITY_NOT_PENDING]: '该实名记录不在待审核状态',
+
+  [KBErrorCodes.MERCHANT_ALREADY_APPLIED]: '已申请过商户',
+  [KBErrorCodes.MERCHANT_INFO_NOT_FOUND]: '商户信息不存在',
+  [KBErrorCodes.MERCHANT_NOT_MODIFIABLE]: '当前状态不可修改资料',
+  [KBErrorCodes.MERCHANT_NOT_FOUND]: '商户不存在',
+  [KBErrorCodes.MERCHANT_AUDIT_PENDING_ONLY]: '只能审核待审核的商户',
+  [KBErrorCodes.MERCHANT_PAY_RATE_INVALID]: '收款费率必须在 0 ~ 10000 之间',
+  [KBErrorCodes.MERCHANT_WITHDRAW_RATE_INVALID]: '提现费率必须在 0 ~ 10000 之间',
+  [KBErrorCodes.MERCHANT_DAILY_LIMIT_INVALID]: '日限额必须大于 0',
+  [KBErrorCodes.MERCHANT_CONFIG_NO_CHANGE]: '至少修改一个配置项',
+  [KBErrorCodes.MERCHANT_NOT_APPROVED]: '商户未审核通过',
+  [KBErrorCodes.MERCHANT_APP_NOT_FOUND]: '应用不存在',
+  [KBErrorCodes.QR_CODE_NOT_FOUND]: '收款码不存在',
+
+  [KBErrorCodes.INVALID_PARAMETER]: '通用参数错误',
+  [KBErrorCodes.AUTHENTICATION_FAILED]: '签名/认证失败',
+  [KBErrorCodes.FORBIDDEN]: '权限/风控禁止',
+  [KBErrorCodes.RESOURCE_NOT_FOUND]: '资源不存在',
+
+  [KBErrorCodes.TRANSFER_AMOUNT_INVALID]: '转账金额必须大于 0',
+  [KBErrorCodes.TRANSFER_TO_SELF]: '不能给自己转账',
+  [KBErrorCodes.RECHARGE_AMOUNT_INVALID]: '充值金额必须大于 0',
+  [KBErrorCodes.NO_RECHARGE_CHANNEL]: '暂无可用充值渠道',
+  [KBErrorCodes.RECHARGE_CHANNEL_FAILED]: '充值渠道调用失败',
+  [KBErrorCodes.WITHDRAWAL_AMOUNT_INVALID]: '提现金额必须大于 0',
+  [KBErrorCodes.WITHDRAWAL_ORDER_NOT_FOUND]: '提现订单不存在',
+  [KBErrorCodes.WITHDRAWAL_ORDER_STATUS_INVALID]: '订单状态不正确',
+  [KBErrorCodes.NO_PAYOUT_CHANNEL]: '暂无可用代付渠道',
+  [KBErrorCodes.ORDER_ALREADY_HANDLED]: '订单已被处理或状态已变更',
+  [KBErrorCodes.FROZEN_BALANCE_INSUFFICIENT]: '冻结余额不足，数据异常',
+  [KBErrorCodes.PAYOUT_CHANNEL_FAILED]: '代付渠道调用失败',
+  [KBErrorCodes.CALLBACK_STATUS_INVALID]: '订单状态不支持回调处理',
+
+  [KBErrorCodes.MERCHANT_ORDER_NO_EXISTS]: '商户订单号已存在',
+  [KBErrorCodes.EXPIRED_TIME_INVALID]: '过期时间必须在未来',
+  [KBErrorCodes.ORDER_NOT_FOUND]: '订单不存在',
+  [KBErrorCodes.MERCHANT_CANNOT_RECEIVE]: '商户当前不可收款',
+  [KBErrorCodes.MERCHANT_USER_NOT_FOUND]: '商户用户不存在',
+  [KBErrorCodes.ORDER_STATUS_CHANGED]: '订单状态已变化或已过期',
+  [KBErrorCodes.CALLBACK_URL_NOT_SET]: '该订单未配置回调地址',
+  [KBErrorCodes.CALLBACK_ALREADY_SUCCESS]: '该订单已通知成功，无需重试',
+  [KBErrorCodes.QR_CODE_NOT_MERCHANT]: '非商户收款码',
+  [KBErrorCodes.QR_CODE_INVALID]: '收款码无效',
+  [KBErrorCodes.QR_CODE_PAY_SELF]: '不能向自己的收款码付款',
+  [KBErrorCodes.MERCHANT_STATUS_ABNORMAL]: '商户状态异常',
+  [KBErrorCodes.RED_PACKET_AMOUNT_INVALID]: '红包金额必须大于 0',
+  [KBErrorCodes.RED_PACKET_NOT_FOUND]: '红包不存在',
+  [KBErrorCodes.RED_PACKET_CLAIMED_OR_EXPIRED]: '红包已被领取或已过期',
+  [KBErrorCodes.RED_PACKET_CLAIM_SELF]: '不能领取自己的红包',
+  [KBErrorCodes.RED_PACKET_EXPIRED]: '红包已过期，系统将自动退回',
+  [KBErrorCodes.RED_PACKET_STATUS_CHANGED]: '红包状态已变化',
+  [KBErrorCodes.QR_CODE_EXPIRED]: '收款码已失效',
+  [KBErrorCodes.QR_CODE_USE_CASHIER]: '商户二维码请通过收银台支付',
+  [KBErrorCodes.IDEMPOTENCY_KEY_CONFLICT]: '幂等键冲突，请更换后重试',
+
+  [KBErrorCodes.CALLBACK_CHANNEL_MISMATCH]: '回调渠道与订单渠道不匹配',
+  [KBErrorCodes.CALLBACK_CHANNEL_ORDER_NO_MISMATCH]: '渠道订单号不匹配',
+  [KBErrorCodes.CALLBACK_URL_PROTOCOL_INVALID]: '回调地址协议仅支持 http/https',
+  [KBErrorCodes.CALLBACK_URL_INTERNAL]: '回调地址不允许指向内网',
+  [KBErrorCodes.CALLBACK_URL_FORMAT_INVALID]: '回调地址格式无效',
+  [KBErrorCodes.ORDER_AMOUNT_INVALID]: '金额必须大于 0',
+  [KBErrorCodes.ORDER_EXPIRED_TIME_TOO_LATE]: '订单有效期不能超过 24 小时',
+  [KBErrorCodes.ORDER_NOT_REFUNDABLE]: '订单状态不可退款',
+  [KBErrorCodes.ORDER_FULLY_REFUNDED]: '订单已全额退款',
+  [KBErrorCodes.REFUND_AMOUNT_INVALID]: '退款金额必须大于 0',
+  [KBErrorCodes.REFUND_AMOUNT_EXCEEDED]: '退款金额超过可退金额',
+  [KBErrorCodes.MERCHANT_APP_DISABLED]: '应用已禁用',
+
+  [KBErrorCodes.RISK_EVENT_NOT_FOUND]: '风险事件不存在',
+  [KBErrorCodes.JOURNAL_UNBALANCED]: '复式记账借贷不平衡',
+
+  [KBErrorCodes.ADMIN_USER_NOT_FOUND]: '管理员不存在',
+  [KBErrorCodes.ADMIN_USERNAME_EXISTS]: '用户名已存在',
+  [KBErrorCodes.ADMIN_CANNOT_DELETE_SELF]: '不能删除自己',
+  [KBErrorCodes.ADMIN_OLD_PASSWORD_INCORRECT]: '旧密码错误',
+  [KBErrorCodes.ADMIN_CONFIG_KEY_EXISTS]: '配置键已存在',
+  [KBErrorCodes.ADMIN_CONFIG_KEY_NOT_FOUND]: '配置键不存在',
+  [KBErrorCodes.ADMIN_INSUFFICIENT_PERMISSIONS]: '权限不足，仅超级管理员可操作',
+}
+
+/**
+ * 生成带 KBxxx 前缀的统一错误消息
+ *
+ * @param code 错误码
+ * @param message 可选自定义消息；不传时使用默认消息
+ */
+export function kbError(code: KBErrorCode, message?: string): string {
+  return `${code} ${message ?? KBErrorMessages[code] ?? '未知错误'}`
+}
