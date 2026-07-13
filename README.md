@@ -184,7 +184,7 @@ start.bat
 | `POSTGRES_USER` | 否 | postgres | PostgreSQL 用户名，docker compose 模式下自动注入 |
 | `POSTGRES_PASSWORD` | **是** | 无 | PostgreSQL 密码，docker compose 必填 |
 | `POSTGRES_DB` | 否 | kebaipay | PostgreSQL 数据库名，docker compose 模式下自动注入 |
-| `REDIS_URL` | 否 | 无 | Redis 连接串，不配则降级为进程内缓存 |
+| `REDIS_URL` | 生产必填 | 无 | Redis 连接串，生产环境 SecurityValidator 强制要求配置 |
 | `REDIS_PASSWORD` | 否 | redis | Redis 密码 |
 | `JWT_USER_SECRET` | **是** | 无 | 用户端 JWT 签名密钥，必须改 |
 | `JWT_ADMIN_SECRET` | **是** | 无 | 管理端 JWT 签名密钥，必须改 |

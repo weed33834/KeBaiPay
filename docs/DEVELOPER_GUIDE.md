@@ -23,9 +23,9 @@
 
 | 组件 | 最低版本 | 说明 |
 |------|---------|------|
-| Node.js | >= 18 | 推荐 20 LTS |
-| PostgreSQL | >= 14 | 或 SQLite（开发环境） |
-| Redis | >= 6 | 用于 nonce 防重放和分布式锁（可选） |
+| Node.js | >= 20 | NestJS 11 + TypeScript 6 要求 |
+| PostgreSQL | >= 16 | 不再支持 SQLite |
+| Redis | >= 7 | 生产环境必填，资金操作的并发安全靠它 |
 
 ### 安装与启动
 

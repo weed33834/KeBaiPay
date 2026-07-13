@@ -44,8 +44,12 @@ export class WebhooksService {
     rawBody: string,
     headers: Record<string, string>,
   ): Promise<string> {
-    const lockKey = `webhook:recharge:${channelCode}:${this.extractOrderNo(rawBody, channelCode)}`
+    // 锁 key 使用 rawBody hash：微信 V3 回调外层无 out_trade_no（需解密），
+    // 改用 hash 保证同一回调内容多次重试时锁同一把，避免锁 key 退化为 unknown
+    const orderNo = this.extractOrderNo(rawBody, channelCode)
+    const lockKey = `webhook:recharge:${channelCode}:${orderNo}`
 
+    const startTime = Date.now()
     return this.redis.withLock(lockKey, 30, async () => {
       // 1. 幂等性检查
       const idempotencyKey = this.generateIdempotencyKey(channelCode, rawBody, 'recharge')
@@ -55,23 +59,43 @@ export class WebhooksService {
         return this.getSuccessResponse(channelCode)
       }
 
-      // 2. 验证签名
-      await this.verifySignature(channelCode, rawBody, headers, 'recharge')
+      try {
+        // 2. 验证签名
+        await this.verifySignature(channelCode, rawBody, headers, 'recharge')
 
-      // 3. 处理回调
-      const result = await this.transactionsService.handleRechargeCallback(
-        channelCode,
-        rawBody,
-        headers,
-      )
+        // 3. 处理回调
+        const result = await this.transactionsService.handleRechargeCallback(
+          channelCode,
+          rawBody,
+          headers,
+        )
 
-      // 4. 记录已处理
-      await this.redis.set(idempotencyKey, '1', 86400) // 24 小时过期
+        // 4. 记录已处理
+        await this.redis.set(idempotencyKey, '1', 86400) // 24 小时过期
 
-      // 5. 记录回调日志
-      await this.logCallback(channelCode, 'recharge', rawBody, 'SUCCESS')
+        // 5. 记录回调日志（落库）
+        await this.logCallback(
+          channelCode,
+          'recharge',
+          rawBody,
+          'SUCCESS',
+          null,
+          Date.now() - startTime,
+        )
 
-      return result
+        return result
+      } catch (err) {
+        // 处理失败也要落库记录，便于审计追溯
+        await this.logCallback(
+          channelCode,
+          'recharge',
+          rawBody,
+          'PROCESS_ERROR',
+          err instanceof Error ? err.message : String(err),
+          Date.now() - startTime,
+        )
+        throw err
+      }
     })
   }
 
@@ -83,8 +107,10 @@ export class WebhooksService {
     rawBody: string,
     headers: Record<string, string>,
   ): Promise<string> {
-    const lockKey = `webhook:payout:${channelCode}:${this.extractOrderNo(rawBody, channelCode)}`
+    const orderNo = this.extractOrderNo(rawBody, channelCode)
+    const lockKey = `webhook:payout:${channelCode}:${orderNo}`
 
+    const startTime = Date.now()
     return this.redis.withLock(lockKey, 30, async () => {
       // 1. 幂等性检查
       const idempotencyKey = this.generateIdempotencyKey(channelCode, rawBody, 'payout')
@@ -94,23 +120,42 @@ export class WebhooksService {
         return this.getSuccessResponse(channelCode)
       }
 
-      // 2. 验证签名
-      await this.verifySignature(channelCode, rawBody, headers, 'payout')
+      try {
+        // 2. 验证签名
+        await this.verifySignature(channelCode, rawBody, headers, 'payout')
 
-      // 3. 处理回调
-      const result = await this.withdrawalsService.handlePayoutCallback(
-        channelCode,
-        rawBody,
-        headers,
-      )
+        // 3. 处理回调
+        const result = await this.withdrawalsService.handlePayoutCallback(
+          channelCode,
+          rawBody,
+          headers,
+        )
 
-      // 4. 记录已处理
-      await this.redis.set(idempotencyKey, '1', 86400)
+        // 4. 记录已处理
+        await this.redis.set(idempotencyKey, '1', 86400)
 
-      // 5. 记录回调日志
-      await this.logCallback(channelCode, 'payout', rawBody, 'SUCCESS')
+        // 5. 记录回调日志（落库）
+        await this.logCallback(
+          channelCode,
+          'payout',
+          rawBody,
+          'SUCCESS',
+          null,
+          Date.now() - startTime,
+        )
 
-      return result
+        return result
+      } catch (err) {
+        await this.logCallback(
+          channelCode,
+          'payout',
+          rawBody,
+          'PROCESS_ERROR',
+          err instanceof Error ? err.message : String(err),
+          Date.now() - startTime,
+        )
+        throw err
+      }
     })
   }
 
@@ -122,8 +167,10 @@ export class WebhooksService {
     rawBody: string,
     headers: Record<string, string>,
   ): Promise<string> {
-    const lockKey = `webhook:refund:${channelCode}:${this.extractRefundNo(rawBody, channelCode)}`
+    const refundNo = this.extractRefundNo(rawBody, channelCode)
+    const lockKey = `webhook:refund:${channelCode}:${refundNo}`
 
+    const startTime = Date.now()
     return this.redis.withLock(lockKey, 30, async () => {
       // 1. 幂等性检查
       const idempotencyKey = this.generateIdempotencyKey(channelCode, rawBody, 'refund')
@@ -133,23 +180,42 @@ export class WebhooksService {
         return this.getSuccessResponse(channelCode)
       }
 
-      // 2. 验证签名
-      await this.verifySignature(channelCode, rawBody, headers, 'refund')
+      try {
+        // 2. 验证签名
+        await this.verifySignature(channelCode, rawBody, headers, 'refund')
 
-      // 3. 处理回调
-      const result = await this.refundService.handleRefundCallback(
-        channelCode,
-        rawBody,
-        headers,
-      )
+        // 3. 处理回调
+        const result = await this.refundService.handleRefundCallback(
+          channelCode,
+          rawBody,
+          headers,
+        )
 
-      // 4. 记录已处理
-      await this.redis.set(idempotencyKey, '1', 86400)
+        // 4. 记录已处理
+        await this.redis.set(idempotencyKey, '1', 86400)
 
-      // 5. 记录回调日志
-      await this.logCallback(channelCode, 'refund', rawBody, 'SUCCESS')
+        // 5. 记录回调日志（落库）
+        await this.logCallback(
+          channelCode,
+          'refund',
+          rawBody,
+          'SUCCESS',
+          null,
+          Date.now() - startTime,
+        )
 
-      return result
+        return result
+      } catch (err) {
+        await this.logCallback(
+          channelCode,
+          'refund',
+          rawBody,
+          'PROCESS_ERROR',
+          err instanceof Error ? err.message : String(err),
+          Date.now() - startTime,
+        )
+        throw err
+      }
     })
   }
 
@@ -176,14 +242,28 @@ export class WebhooksService {
         } catch (err) {
           // 验签过程本身抛错视为验签失败，拒绝处理
           this.logger.error(`${channelCode} ${callbackType} 验签异常: ${err}`)
-          await this.logCallback(channelCode, callbackType, rawBody, 'SIGNATURE_ERROR')
+          await this.logCallback(
+            channelCode,
+            callbackType,
+            rawBody,
+            'SIGNATURE_ERROR',
+            err instanceof Error ? err.message : String(err),
+            0,
+          )
           throw new BadRequestException(
             kbError(KBErrorCodes.AUTHENTICATION_FAILED, `${channelCode} 回调验签异常`),
           )
         }
         if (!isValid) {
           this.logger.error(`${channelCode} ${callbackType} 回调签名验证失败`)
-          await this.logCallback(channelCode, callbackType, rawBody, 'SIGNATURE_FAILED')
+          await this.logCallback(
+            channelCode,
+            callbackType,
+            rawBody,
+            'SIGNATURE_FAILED',
+            'signature verification failed',
+            0,
+          )
           throw new BadRequestException(
             kbError(KBErrorCodes.AUTHENTICATION_FAILED, `${channelCode} 回调签名验证失败`),
           )
@@ -193,46 +273,55 @@ export class WebhooksService {
   }
 
   /**
-   * 从回调体中提取订单号
+   * 从回调体中提取订单号（用于锁 key 隔离）
+   *
+   * 微信 V3 回调外层是加密的 resource.ciphertext，无法在解密前提取 out_trade_no。
+   * 改用 rawBody 的 SHA256 前 16 位作为锁 key 后缀，保证同一回调内容多次重试时
+   * 锁同一把，不同回调锁不同把。比之前退化为 'unknown' 让所有并发回调串行化更优。
+   *
+   * 支付宝和其他渠道能直接解析出 out_trade_no，仍优先使用业务订单号。
    */
   private extractOrderNo(rawBody: string, channelCode: string): string {
-    try {
-      const body = JSON.parse(rawBody)
+    // 微信 V3 回调外层无明文订单号，用 hash 兜底
+    if (channelCode === 'wechat') {
+      const hash = createHash('sha256').update(rawBody).digest('hex')
+      return `hash:${hash.slice(0, 16)}`
+    }
 
-      switch (channelCode) {
-        case 'wechat':
-          // 微信回调需要解密，这里提取外层的 out_trade_no（如果有）
-          return body.out_trade_no || 'unknown'
-        case 'alipay':
-          // 支付宝回调是 form-urlencoded，解析后获取
-          const params = new URLSearchParams(rawBody)
-          return params.get('out_trade_no') || 'unknown'
-        default:
-          return body.orderNo || body.out_trade_no || 'unknown'
+    try {
+      if (channelCode === 'alipay') {
+        // 支付宝回调是 form-urlencoded
+        const params = new URLSearchParams(rawBody)
+        return params.get('out_trade_no') || `hash:${createHash('sha256').update(rawBody).digest('hex').slice(0, 16)}`
       }
+      const body = JSON.parse(rawBody)
+      return body.orderNo || body.out_trade_no || `hash:${createHash('sha256').update(rawBody).digest('hex').slice(0, 16)}`
     } catch {
-      return 'unknown'
+      // 解析失败用 hash 兜底，避免退化为 'unknown' 导致并发回调串行化
+      return `hash:${createHash('sha256').update(rawBody).digest('hex').slice(0, 16)}`
     }
   }
 
   /**
-   * 从退款回调体中提取退款单号
+   * 从退款回调体中提取退款单号（用于锁 key 隔离）
+   *
+   * 与 extractOrderNo 同理：微信回调用 hash 兜底。
    */
   private extractRefundNo(rawBody: string, channelCode: string): string {
-    try {
-      const body = JSON.parse(rawBody)
+    if (channelCode === 'wechat') {
+      const hash = createHash('sha256').update(rawBody).digest('hex')
+      return `hash:${hash.slice(0, 16)}`
+    }
 
-      switch (channelCode) {
-        case 'wechat':
-          return body.out_refund_no || 'unknown'
-        case 'alipay':
-          const params = new URLSearchParams(rawBody)
-          return params.get('out_request_no') || 'unknown'
-        default:
-          return body.refundNo || body.out_refund_no || 'unknown'
+    try {
+      if (channelCode === 'alipay') {
+        const params = new URLSearchParams(rawBody)
+        return params.get('out_request_no') || `hash:${createHash('sha256').update(rawBody).digest('hex').slice(0, 16)}`
       }
+      const body = JSON.parse(rawBody)
+      return body.refundNo || body.out_refund_no || `hash:${createHash('sha256').update(rawBody).digest('hex').slice(0, 16)}`
     } catch {
-      return 'unknown'
+      return `hash:${createHash('sha256').update(rawBody).digest('hex').slice(0, 16)}`
     }
   }
 
@@ -264,19 +353,35 @@ export class WebhooksService {
   }
 
   /**
-   * 记录回调日志
+   * 记录回调日志（落库到 webhook_logs 表）
+   *
+   * 所有 webhook 入站均落库，包含成功/失败两种状态，用于审计追溯与故障排查。
+   * 落库失败不影响主流程，仅记录错误日志。
    */
   private async logCallback(
     channelCode: string,
     callbackType: string,
     rawBody: string,
     status: string,
+    errorMessage: string | null,
+    durationMs: number,
   ): Promise<void> {
     try {
-      // 可选：将回调日志存储到数据库或文件
-      this.logger.log(`回调日志: ${channelCode} ${callbackType} ${status}`)
+      await this.prisma.webhookLog.create({
+        data: {
+          channelCode,
+          callbackType,
+          status,
+          rawBody,
+          errorMessage,
+          durationMs,
+        },
+      })
     } catch (error) {
-      this.logger.error(`记录回调日志失败: ${error}`)
+      // 落库失败不能影响主流程，仅记录错误日志
+      this.logger.error(
+        `记录回调日志失败: ${channelCode} ${callbackType} ${status} - ${error}`,
+      )
     }
   }
 }

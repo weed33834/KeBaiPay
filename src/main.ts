@@ -1,6 +1,10 @@
 import { config } from 'dotenv'
 import { join } from 'path'
 config({ path: join(__dirname, '..', '.env') })
+// OpenTelemetry 必须在所有其他 import 之前启动，才能 patch http/express/pg/ioredis 等
+// 模块的运行时方法。未配置 OTEL_EXPORTER_OTLP_ENDPOINT 时为 no-op，零开销。
+import { startTracing } from './tracing'
+startTracing()
 import { NestFactory } from '@nestjs/core'
 import { NestExpressApplication } from '@nestjs/platform-express'
 import { Logger, ValidationPipe } from '@nestjs/common'
@@ -12,6 +16,7 @@ import { SecurityValidatorService } from './security/security-validator.service'
 import { ResponseTransformInterceptor } from './common/response-transform.interceptor'
 import { AllExceptionsFilter } from './common/all-exceptions.filter'
 import { patchLoggerWithTraceId } from './common/trace-context'
+import { JsonLogger } from './common/json-logger'
 
 // 在 NestFactory.create 之前 patch Logger 原型，
 // 使所有 service 层 Logger 实例的 log/warn/error 自动注入 [traceId] 前缀
@@ -39,7 +44,12 @@ process.on('uncaughtException', (err: Error) => {
 })
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true })
+  // 生产环境用 JSON 结构化日志，便于 ELK/Loki 采集；开发保持文本可读
+  const isProduction = process.env.NODE_ENV === 'production'
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    rawBody: true,
+    logger: new JsonLogger('App'),
+  })
 
   // 优雅停机：收到 SIGTERM/SIGINT 时先关闭连接再退出，保证进行中的资金事务完成
   app.enableShutdownHooks()
@@ -127,8 +137,6 @@ async function bootstrap() {
     credentials: true,
     maxAge: 86400,
   })
-
-  const isProduction = process.env.NODE_ENV === 'production'
 
   // Swagger API 文档：生产环境不挂载，避免接口结构与参数暴露
   if (!isProduction) {

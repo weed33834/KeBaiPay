@@ -115,10 +115,12 @@ describe('AdminAuthController (e2e)', () => {
         .send({ oldPassword: 'old123', newPassword: 'new123456' })
         .expect(201)
 
+      // changeAdminPassword 现在透传 auditMeta（ip + userAgent）做审计上下文
       expect(mockAdminService.changeAdminPassword).toHaveBeenCalledWith(
         'a1',
         'old123',
         'new123456',
+        expect.objectContaining({ ip: expect.any(String) }),
       )
     })
   })

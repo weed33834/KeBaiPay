@@ -442,6 +442,26 @@ model AdminOperationLog {
   @@map("admin_operation_logs")
 }
 
+/// 支付渠道回调日志：所有 webhook 入站记录均落库，用于审计追溯与故障排查
+model WebhookLog {
+  id           String   @id @default(uuid())
+  channelCode  String   @map("channel_code")
+  callbackType String   @map("callback_type") // recharge / payout / refund
+  status       String   // SUCCESS / SIGNATURE_FAILED / SIGNATURE_ERROR / PROCESS_ERROR
+  rawBody      String   @map("raw_body") @db.Text
+  // 错误信息（status != SUCCESS 时填），SUCCESS 时为 null
+  errorMessage String?  @map("error_message") @db.Text
+  // 处理耗时（毫秒），用于性能分析
+  durationMs   Int?     @map("duration_ms")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([channelCode])
+  @@index([callbackType])
+  @@index([status])
+  @@index([createdAt])
+  @@map("webhook_logs")
+}
+
 model PaymentChannelConfig {
   id        String   @id @default(uuid())
   code      String   @unique

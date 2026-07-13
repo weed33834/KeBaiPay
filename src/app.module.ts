@@ -30,6 +30,7 @@ import { AuditModule } from './audit/audit.module'
 import { HealthModule } from './health/health.module'
 import { NotificationsModule } from './notifications/notifications.module'
 import { SmsModule } from './sms/sms.module'
+import { MetricsModule } from './metrics/metrics.module'
 import { RequestLoggingMiddleware } from './common/request-logging.middleware'
 import { ScheduleHealthModule } from './common/schedule-health.module'
 import { validateEnv } from './common/env-validation'
@@ -84,6 +85,7 @@ import { validateEnv } from './common/env-validation'
     HealthModule,
     ScheduleHealthModule,
     SmsModule,
+    MetricsModule,
   ],
   providers: [
     {

@@ -6,12 +6,13 @@
 
 - [版本 1.0.0](#版本-100)
 - [已实现功能清单](#已实现功能清单)
+- [2026-07 重构记录](#2026-07-重构记录)
 
 ---
 
 ## 版本 1.0.0
 
-**发布日期：** 2024-01-01
+**发布日期：** 2026-07-13
 
 **版本类型：** 首个正式发布版本
 
@@ -137,8 +138,7 @@
 
 #### 数据库模块
 - Prisma ORM 集成
-- PostgreSQL 支持
-- SQLite 支持（开发环境）
+- PostgreSQL 16/17 支持
 - 数据库迁移
 
 #### 缓存模块
@@ -250,3 +250,76 @@
 - 推送覆盖远程 main，清空旧描述与过期 .github 模板
 - README 项目结构对齐实际 27 个模块
 - 依赖更新至 ^ 范围内最新（TS6/Jest29 稳定组合保留）
+
+---
+
+## 2026-07 重构记录
+
+### 2026-07-13 阶段 1-4：安全与基础设施加固
+
+- **阶段 1**：安全红线修复与冗余清理（密钥泄露/硬编码密钥/SQL 注入防护加固）
+- **阶段 2a**：造轮子替换与时区修复（移除自实现 crypto/日期工具，改用成熟库）
+- **阶段 2b**：P0 安全与资金安全修复
+- **阶段 2c**：P0 review 修复 8 项阻断项
+- **阶段 3**：业务逻辑完善与风控/权限/数据一致性加固
+- **阶段 4**：部署/CI/文档完善
+
+### 2026-07-13 第三批基础设施 P0 修复
+
+- 全局异常过滤器 `AllExceptionsFilter`：统一 `ApiErrorResponse` envelope + Prisma 错误码映射（P2002→409 / P2025→404 / P2003→400）
+- 进程级异常兜底：`unhandledRejection` / `uncaughtException` 接管
+- AsyncLocalStorage + Logger 原型 patch：traceId 自动注入 service 层日志
+- ConfigModule 纯 TS env 校验（无 joi 依赖）
+- PG 连接池配置：`max` / `statement_timeout` / `connectionTimeoutMillis`
+- k8s readiness probe：故障返回 503 让 Pod 摘除流量
+- 微信代付 batch_status 校验：`success_num >= total_num` 防资金事故
+- X-Forwarded-For 伪造防护：改用 `req.ip` + `trust proxy 1`
+- 风控 fail-closed：Redis 不可用时 IP 频率规则抛错阻断交易
+- 支付密码推迟到实名审核通过：`pendingPayPasswordHash` 暂存机制
+
+### 2026-07-13 短信 SDK 接入
+
+- 接入腾讯云官方 SDK `tencentcloud-sdk-nodejs-sms`（API 3.0，TC3-HMAC-SHA256 签名）
+- 接入华为云短信 HTTP `POST /sms/batchSendSms/v1` + SDK-HMAC-SHA256 签名（无 SDK 依赖）
+- 新增 `docs/sms-integration.md` 商家自助接入指南
+- 未配置时默认 `SMS_PROVIDER=mock`，生产环境 SecurityValidator 拒绝启动
+
+### 2026-07-13 风控滑动窗口限流
+
+- Redis Lua + ZSET 滑动窗口替换固定窗口分桶计数
+- `RedisService` 新增 `slidingWindowCheck` / `slidingWindowCount` / `slidingWindowRecord` 三个方法
+- 毫秒级精度，无 key 永驻（PEXPIRE 自动过期），原子性（Lua 单命令）
+- IP 维度 fail-closed 保持
+
+### 2026-07-13 P0-8 审计日志事务一致性
+
+- 重构 `admin.service` 8 个非事务方法：业务写 + 审计日志全部包入 `$transaction`
+- 补 `createAdminUser` 审计漏记
+- `channel-config.controller` 三处（createChannel/updateChannel/deleteChannel）同类问题治理
+- admin.service 9 个事务方法补 `auditMeta` 参数，审计日志可记录 IP/UA 上下文
+- 抽共享模板 `persistConfigWithAudit`，消除 setSystemConfig/updateSystemConfig/createSystemConfig 三方法重复
+
+### 2026-07-13 测试补全
+
+- 补全 16 个 controller 单元测试，新增 172 个测试用例
+- 新增 9 个 admin 事务一致性回归测试
+- 新增 4 个滑动窗口方法测试
+- 全量测试：46 suites / 635 tests passed
+
+### 2026-07-13 可观测性增强
+
+- 新增 Prometheus `/metrics` 端点（业务指标：TPS / 错误率 / 资金流水金额 / 渠道成功率）
+- 结构化日志：pino JSON formatter，可接 ELK/Loki
+- APM 接入：OpenTelemetry trace + Sentry 异常告警
+
+### 2026-07-13 微信回调与 webhook 加固
+
+- 修复微信回调 `extractOrderNo` 锁 key 退化为 `unknown` 问题
+- webhook 回调日志落库（不再仅 `logger.log`）
+- 新增 `webhooks.service.spec.ts` 单测
+- 新增 `refund.service.spec.ts` / `settlement.service.spec.ts` / `auth.service.spec.ts` 单测
+
+### 2026-07-13 CI/CD 完善
+
+- CI 集成 e2e 测试步骤
+- 新增 CD pipeline（自动部署到服务器）
