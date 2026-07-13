@@ -25,6 +25,7 @@ type RedisClientMock = {
   ping: jest.Mock
   disconnect: jest.Mock
   on: jest.Mock
+  multi: jest.Mock
 }
 
 describe('RedisService', () => {
@@ -51,6 +52,7 @@ describe('RedisService', () => {
       ping: jest.fn(),
       disconnect: jest.fn(),
       on: jest.fn(),
+      multi: jest.fn(),
     }
     MockedRedis.mockImplementation(() => client)
 
@@ -341,6 +343,111 @@ describe('RedisService', () => {
       await createService(undefined)
       expect(await service.incr('counter:u1', 60)).toBe(0)
       expect(await service.incr('counter:u1')).toBe(0)
+    })
+  })
+
+  describe('slidingWindowCheck', () => {
+    it('返回 1 时表示放行并已记录', async () => {
+      await createService('redis://localhost:6379')
+      client.eval.mockResolvedValue(1)
+
+      const allowed = await service.slidingWindowCheck('rate:u1', 60000, 10, 'm1')
+
+      expect(allowed).toBe(true)
+      expect(client.eval).toHaveBeenCalledTimes(1)
+      const [script, numkeys, key, nowArg, windowArg, limitArg, memberArg] =
+        client.eval.mock.calls[0]
+      // 脚本必须按顺序清理 → 计数 → 判断 → 写入 → 设 TTL
+      expect(script).toContain("ZREMRANGEBYSCORE")
+      expect(script).toContain("ZCARD")
+      expect(script).toContain("ZADD")
+      expect(script).toContain("PEXPIRE")
+      expect(script).toContain("if count >= limit then")
+      expect(numkeys).toBe(1)
+      expect(key).toBe('rate:u1')
+      expect(windowArg).toBe('60000')
+      expect(limitArg).toBe('10')
+      expect(memberArg).toBe('m1')
+      // now 应为合法毫秒时间戳
+      expect(Number(nowArg)).toBeGreaterThan(0)
+    })
+
+    it('返回 0 时表示已达上限拒绝', async () => {
+      await createService('redis://localhost:6379')
+      client.eval.mockResolvedValue(0)
+
+      const allowed = await service.slidingWindowCheck('rate:u1', 60000, 10, 'm2')
+
+      expect(allowed).toBe(false)
+    })
+
+    it('无 client 时抛错（风控场景 fail-closed）', async () => {
+      await createService(undefined)
+      await expect(
+        service.slidingWindowCheck('rate:u1', 60000, 10, 'm1'),
+      ).rejects.toThrow(/Redis 未配置/)
+    })
+  })
+
+  describe('slidingWindowCount', () => {
+    it('返回当前窗口内成员数', async () => {
+      await createService('redis://localhost:6379')
+      client.eval.mockResolvedValue(5)
+
+      const count = await service.slidingWindowCount('rate:u1', 60000)
+
+      expect(count).toBe(5)
+      const [script, numkeys, key, nowArg, windowArg] = client.eval.mock.calls[0]
+      // 脚本只清理 + 计数，不写入
+      expect(script).toContain("ZREMRANGEBYSCORE")
+      expect(script).toContain("ZCARD")
+      expect(script).not.toContain("ZADD")
+      expect(numkeys).toBe(1)
+      expect(key).toBe('rate:u1')
+      expect(windowArg).toBe('60000')
+      expect(Number(nowArg)).toBeGreaterThan(0)
+    })
+
+    it('无 client 时抛错', async () => {
+      await createService(undefined)
+      await expect(service.slidingWindowCount('rate:u1', 60000)).rejects.toThrow(
+        /Redis 未配置/,
+      )
+    })
+  })
+
+  describe('slidingWindowRecord', () => {
+    it('用 multi pipeline 执行 zremrangebyscore + zadd + pexpire', async () => {
+      await createService('redis://localhost:6379')
+      // multi() 返回链式对象，每个命令返回自身，最后 exec() 返回结果
+      const chain = {
+        zremrangebyscore: jest.fn().mockReturnThis(),
+        zadd: jest.fn().mockReturnThis(),
+        pexpire: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([[1, null], [1, null], [1, null]]),
+      }
+      client.multi.mockReturnValue(chain)
+
+      await service.slidingWindowRecord('rate:u1', 60000, 'm-abc')
+
+      expect(client.multi).toHaveBeenCalledTimes(1)
+      // 验证链式调用顺序
+      expect(chain.zremrangebyscore).toHaveBeenCalledWith(
+        'rate:u1',
+        0,
+        expect.any(Number),
+      )
+      // zadd 参数：key, score, member
+      expect(chain.zadd).toHaveBeenCalledWith('rate:u1', expect.any(Number), 'm-abc')
+      expect(chain.pexpire).toHaveBeenCalledWith('rate:u1', 60000)
+      expect(chain.exec).toHaveBeenCalledTimes(1)
+    })
+
+    it('无 client 时抛错', async () => {
+      await createService(undefined)
+      await expect(
+        service.slidingWindowRecord('rate:u1', 60000, 'm1'),
+      ).rejects.toThrow(/Redis 未配置/)
     })
   })
 

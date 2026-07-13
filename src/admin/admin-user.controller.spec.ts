@@ -48,12 +48,15 @@ describe('AdminUserController', () => {
     const admin = { sub: 'a1', role: 'SUPER_ADMIN' }
     const dto = { username: 'newadmin', password: '12345678', role: 'FINANCE', nickname: '财务' }
     await controller.create(dto as any, admin as any)
-    expect(mockAdminService.createAdminUser).toHaveBeenCalledWith({
-      username: 'newadmin',
-      password: '12345678',
-      role: 'FINANCE',
-      nickname: '财务',
-    })
+    expect(mockAdminService.createAdminUser).toHaveBeenCalledWith(
+      {
+        username: 'newadmin',
+        password: '12345678',
+        role: 'FINANCE',
+        nickname: '财务',
+      },
+      'a1',
+    )
   })
 
   it('update 透传 id/dto/sub 到 updateAdminUser', async () => {

@@ -11,6 +11,12 @@ import { RiskEngineService } from '../risk/risk-engine.service'
 import { RedisService } from '../redis/redis.service'
 import { UserStatus } from '../common/enums'
 
+// mock bcrypt：避免真实 hash/compare 在单测中消耗 CPU
+jest.mock('bcrypt', () => ({
+  hash: jest.fn().mockResolvedValue('hashed-password'),
+  compare: jest.fn().mockResolvedValue(true),
+}))
+
 type AuditLogMock = Record<'log' | 'verifyChain', jest.Mock>
 type RedisMock = Record<'isEnabled' | 'withLock', jest.Mock>
 type PrismaMock = {
@@ -21,6 +27,8 @@ type PrismaMock = {
   accountLedger: Record<string, jest.Mock>
   bill: Record<string, jest.Mock>
   riskEvent: Record<string, jest.Mock>
+  adminUser: Record<string, jest.Mock>
+  systemConfig: Record<string, jest.Mock>
   adminOperationLog: Record<string, jest.Mock>
 } & Record<string, unknown>
 
@@ -53,7 +61,19 @@ describe('AdminService', () => {
       },
       accountLedger: { create: jest.fn() },
       bill: { create: jest.fn() },
-      riskEvent: { create: jest.fn() },
+      riskEvent: { create: jest.fn(), update: jest.fn(), findUnique: jest.fn() },
+      adminUser: {
+        findUnique: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+      },
+      systemConfig: {
+        findUnique: jest.fn(),
+        findMany: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+        upsert: jest.fn(),
+      },
       adminOperationLog: { create: jest.fn() },
     }
 
@@ -474,6 +494,150 @@ describe('AdminService', () => {
           adminId: 'admin1',
           action: 'USER_STATUS_UPDATE',
           target: 'u1',
+        }),
+        expect.anything(),
+      )
+    })
+  })
+
+  /**
+   * P0-8 审计日志一致性回归：8 个非事务方法重构后，业务写与审计日志必须在同一事务内
+   * 关键断言：prisma.$transaction 被调用，且 auditLog.log 第二参数（tx）被传入
+   */
+  describe('审计日志事务一致性（P0-8 重构）', () => {
+    it('handleRiskEvent: 业务写与审计日志在同一事务', async () => {
+      prisma.riskEvent.findUnique.mockResolvedValue({ id: 'ev1', userId: 'u1', type: 'LARGE_TRANSFER', level: 'HIGH' })
+      prisma.riskEvent.update.mockResolvedValue({ id: 'ev1', handled: true })
+
+      await service.handleRiskEvent('ev1', 'admin1', { ip: '1.2.3.4' })
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1)
+      expect(prisma.riskEvent.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'ev1' } }))
+      expect(auditLog.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'RISK_EVENT_HANDLE', target: 'ev1', ip: '1.2.3.4' }),
+        expect.anything(),
+      )
+    })
+
+    it('setSystemConfig: upsert 与审计日志在同一事务，risk_rule 缓存清理在事务外', async () => {
+      prisma.systemConfig.findUnique.mockResolvedValue({ key: 'risk_rule:frequency', value: '{}' })
+      prisma.systemConfig.upsert.mockResolvedValue({ key: 'risk_rule:frequency', value: 'new' })
+      auditLog.log.mockResolvedValue({})
+
+      await service.setSystemConfig('risk_rule:frequency', 'new', 'admin1')
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1)
+      expect(auditLog.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'SYSTEM_CONFIG_SET', target: 'risk_rule:frequency' }),
+        expect.anything(),
+      )
+    })
+
+    it('createAdminUser: 创建管理员补审计，与业务写在同一事务', async () => {
+      prisma.adminUser.findUnique.mockResolvedValue(null)
+      prisma.adminUser.create.mockResolvedValue({ id: 'a2', username: 'newadmin', role: 'FINANCE' })
+      auditLog.log.mockResolvedValue({})
+
+      const result = await service.createAdminUser(
+        { username: 'newadmin', password: 'Pass1234', role: 'FINANCE' as any },
+        'admin1',
+      )
+
+      expect(result.id).toBe('a2')
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1)
+      expect(auditLog.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          adminId: 'admin1',
+          action: 'ADMIN_USER_CREATE',
+          target: 'a2',
+        }),
+        expect.anything(),
+      )
+    })
+
+    it('updateAdminUser: update 与审计日志在同一事务', async () => {
+      prisma.adminUser.findUnique.mockResolvedValue({ id: 'a2', role: 'SUPER_ADMIN' })
+      prisma.adminUser.update.mockResolvedValue({ id: 'a2', nickname: '新昵称' })
+      auditLog.log.mockResolvedValue({})
+
+      await service.updateAdminUser('a2', { nickname: '新昵称' }, 'a1')
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1)
+      expect(auditLog.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'ADMIN_USER_UPDATE', target: 'a2' }),
+        expect.anything(),
+      )
+    })
+
+    it('deleteAdminUser: 软删与审计日志在同一事务', async () => {
+      prisma.adminUser.findUnique.mockResolvedValue({ id: 'a2', username: 'u2' })
+      prisma.adminUser.update.mockResolvedValue({ id: 'a2', status: 'DISABLED' })
+      auditLog.log.mockResolvedValue({})
+
+      await service.deleteAdminUser('a2', 'a1')
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1)
+      expect(auditLog.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'ADMIN_USER_DELETE', target: 'a2' }),
+        expect.anything(),
+      )
+    })
+
+    it('resetAdminPassword: 密码重置与审计日志在同一事务', async () => {
+      prisma.adminUser.findUnique.mockResolvedValue({ id: 'a2', username: 'u2' })
+      prisma.adminUser.update.mockResolvedValue({})
+      auditLog.log.mockResolvedValue({})
+
+      await service.resetAdminPassword('a2', 'NewPass1234', 'a1')
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1)
+      expect(auditLog.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'ADMIN_PASSWORD_RESET', target: 'a2' }),
+        expect.anything(),
+      )
+    })
+
+    it('changeAdminPassword: 密码变更与审计日志在同一事务', async () => {
+      prisma.adminUser.findUnique.mockResolvedValue({ id: 'a1', username: 'admin', password: 'old-hash' })
+      prisma.adminUser.update.mockResolvedValue({})
+      auditLog.log.mockResolvedValue({})
+
+      await service.changeAdminPassword('a1', 'old', 'NewPass1234')
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1)
+      expect(auditLog.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'ADMIN_PASSWORD_CHANGE', target: 'a1' }),
+        expect.anything(),
+      )
+    })
+
+    it('createSystemConfig: create 与审计日志在同一事务', async () => {
+      prisma.systemConfig.findUnique.mockResolvedValue(null)
+      prisma.systemConfig.create.mockResolvedValue({ key: 'k1', value: 'v1' })
+      auditLog.log.mockResolvedValue({})
+
+      await service.createSystemConfig('k1', 'v1', 'admin1')
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1)
+      expect(auditLog.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'SYSTEM_CONFIG_CREATE', target: 'k1' }),
+        expect.anything(),
+      )
+    })
+
+    it('updateSystemConfig: update 与审计日志在同一事务，risk_rule 缓存清理在事务外', async () => {
+      prisma.systemConfig.findUnique.mockResolvedValue({ key: 'risk_rule:frequency', value: 'old' })
+      prisma.systemConfig.update.mockResolvedValue({ key: 'risk_rule:frequency', value: 'new' })
+      auditLog.log.mockResolvedValue({})
+
+      await service.updateSystemConfig('risk_rule:frequency', 'new', 'admin1')
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1)
+      expect(auditLog.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'SYSTEM_CONFIG_UPDATE',
+          target: 'risk_rule:frequency',
+          detail: expect.objectContaining({ old: 'old', new: 'new' }),
         }),
         expect.anything(),
       )

@@ -47,12 +47,15 @@ export class AdminUserController {
     @Body() dto: CreateAdminUserDto,
     @AdminCurrentUser() admin: AdminCurrentUserType,
   ) {
-    return this.adminService.createAdminUser({
-      username: dto.username,
-      password: dto.password,
-      role: dto.role,
-      nickname: dto.nickname,
-    })
+    return this.adminService.createAdminUser(
+      {
+        username: dto.username,
+        password: dto.password,
+        role: dto.role,
+        nickname: dto.nickname,
+      },
+      admin.sub,
+    )
   }
 
   @Put(':id')

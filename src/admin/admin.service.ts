@@ -429,26 +429,33 @@ export class AdminService {
   ) {
     const event = await this.prisma.riskEvent.findUnique({ where: { id } })
     if (!event) throw new NotFoundException(kbError(KBErrorCodes.RISK_EVENT_NOT_FOUND))
-    const updated = await this.prisma.riskEvent.update({
-      where: { id },
-      data: { handled: true, handledBy, handledAt: new Date() },
-    })
 
-    // 风险事件处理属于敏感操作，写入防篡改审计日志
-    await this.auditLog.log({
-      adminId: handledBy,
-      action: 'RISK_EVENT_HANDLE',
-      target: id,
-      detail: {
-        userId: event.userId,
-        type: event.type,
-        level: event.level,
-      },
-      ip: auditMeta?.ip,
-      userAgent: auditMeta?.userAgent,
-    })
+    // 业务写与审计日志在同一事务，保证审计与状态变更一致
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.riskEvent.update({
+        where: { id },
+        data: { handled: true, handledBy, handledAt: new Date() },
+      })
 
-    return updated
+      // 风险事件处理属于敏感操作，写入防篡改审计日志
+      await this.auditLog.log(
+        {
+          adminId: handledBy,
+          action: 'RISK_EVENT_HANDLE',
+          target: id,
+          detail: {
+            userId: event.userId,
+            type: event.type,
+            level: event.level,
+          },
+          ip: auditMeta?.ip,
+          userAgent: auditMeta?.userAgent,
+        },
+        tx,
+      )
+
+      return updated
+    })
   }
 
   async listLoginLogs(query: {
@@ -496,26 +503,34 @@ export class AdminService {
     })
     const oldValue = existing?.value ?? null
 
-    const updated = await this.prisma.systemConfig.upsert({
-      where: { key },
-      create: { key, value },
-      update: { value },
+    // 业务写与审计日志在同一事务，保证配置变更可追溯
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.systemConfig.upsert({
+        where: { key },
+        create: { key, value },
+        update: { value },
+      })
+
+      // 系统配置变更属于敏感操作，写入防篡改审计日志
+      await this.auditLog.log(
+        {
+          adminId: adminId ?? 'system',
+          action: 'SYSTEM_CONFIG_SET',
+          target: key,
+          detail: { old: oldValue, new: value },
+          ip: auditMeta?.ip,
+          userAgent: auditMeta?.userAgent,
+        },
+        tx,
+      )
+
+      return result
     })
 
-    // 风控规则变更后清空规则缓存，使新配置立即生效
+    // 风控规则变更后清空规则缓存，使新配置立即生效（事务外执行，避免 DB 事务持锁过久）
     if (key.startsWith('risk_rule:')) {
       this.riskEngine.clearCache()
     }
-
-    // 系统配置变更属于敏感操作，写入防篡改审计日志
-    await this.auditLog.log({
-      adminId: adminId ?? 'system',
-      action: 'SYSTEM_CONFIG_SET',
-      target: key,
-      detail: { old: oldValue, new: value },
-      ip: auditMeta?.ip,
-      userAgent: auditMeta?.userAgent,
-    })
 
     return updated
   }
@@ -870,12 +885,15 @@ export class AdminService {
     return { data, total, page, limit }
   }
 
-  async createAdminUser(data: {
-    username: string
-    password: string
-    role: AdminRole
-    nickname?: string
-  }) {
+  async createAdminUser(
+    data: {
+      username: string
+      password: string
+      role: AdminRole
+      nickname?: string
+    },
+    currentAdminId?: string,
+  ) {
     const existing = await this.prisma.adminUser.findUnique({
       where: { username: data.username },
     })
@@ -883,23 +901,40 @@ export class AdminService {
       throw new ConflictException(kbError(KBErrorCodes.ADMIN_USERNAME_EXISTS))
     }
 
+    // bcrypt.hash 在事务外执行：CPU 密集型操作不应在 DB 事务内拉长持锁时间
     const hashedPassword = await bcrypt.hash(data.password, BCRYPT_SALT_ROUNDS)
-    const admin = await this.prisma.adminUser.create({
-      data: {
-        username: data.username,
-        password: hashedPassword,
-        role: data.role,
-        nickname: data.nickname,
-      },
-      select: {
-        id: true,
-        username: true,
-        nickname: true,
-        role: true,
-        status: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+
+    // 创建管理员属高危操作，业务写与审计日志在同一事务
+    const admin = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.adminUser.create({
+        data: {
+          username: data.username,
+          password: hashedPassword,
+          role: data.role,
+          nickname: data.nickname,
+        },
+        select: {
+          id: true,
+          username: true,
+          nickname: true,
+          role: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      })
+
+      await this.auditLog.log(
+        {
+          adminId: currentAdminId ?? 'system',
+          action: 'ADMIN_USER_CREATE',
+          target: created.id,
+          detail: { username: created.username, role: created.role },
+        },
+        tx,
+      )
+
+      return created
     })
 
     return admin
@@ -925,32 +960,38 @@ export class AdminService {
       throw new BadRequestException(kbError(KBErrorCodes.ADMIN_CANNOT_DELETE_SELF))
     }
 
-    const updated = await this.prisma.adminUser.update({
-      where: { id },
-      data: {
-        ...(data.nickname !== undefined && { nickname: data.nickname }),
-        ...(data.role !== undefined && { role: data.role }),
-        ...(data.status !== undefined && { status: data.status }),
-      },
-      select: {
-        id: true,
-        username: true,
-        nickname: true,
-        role: true,
-        status: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    })
+    // 业务写与审计日志在同一事务，保证权限变更可追溯
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.adminUser.update({
+        where: { id },
+        data: {
+          ...(data.nickname !== undefined && { nickname: data.nickname }),
+          ...(data.role !== undefined && { role: data.role }),
+          ...(data.status !== undefined && { status: data.status }),
+        },
+        select: {
+          id: true,
+          username: true,
+          nickname: true,
+          role: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      })
 
-    await this.auditLog.log({
-      adminId: currentAdminId,
-      action: 'ADMIN_USER_UPDATE',
-      target: id,
-      detail: { changes: data },
-    })
+      await this.auditLog.log(
+        {
+          adminId: currentAdminId,
+          action: 'ADMIN_USER_UPDATE',
+          target: id,
+          detail: { changes: data },
+        },
+        tx,
+      )
 
-    return updated
+      return updated
+    })
   }
 
   async deleteAdminUser(id: string, currentAdminId: string) {
@@ -963,29 +1004,35 @@ export class AdminService {
       throw new BadRequestException(kbError(KBErrorCodes.ADMIN_CANNOT_DELETE_SELF))
     }
 
-    // 软删除：将状态设为 DISABLED
-    const updated = await this.prisma.adminUser.update({
-      where: { id },
-      data: { status: AdminStatus.DISABLED },
-      select: {
-        id: true,
-        username: true,
-        nickname: true,
-        role: true,
-        status: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    })
+    // 业务写与审计日志在同一事务，保证管理员禁用可追溯
+    return this.prisma.$transaction(async (tx) => {
+      // 软删除：将状态设为 DISABLED
+      const updated = await tx.adminUser.update({
+        where: { id },
+        data: { status: AdminStatus.DISABLED },
+        select: {
+          id: true,
+          username: true,
+          nickname: true,
+          role: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      })
 
-    await this.auditLog.log({
-      adminId: currentAdminId,
-      action: 'ADMIN_USER_DELETE',
-      target: id,
-      detail: { username: admin.username },
-    })
+      await this.auditLog.log(
+        {
+          adminId: currentAdminId,
+          action: 'ADMIN_USER_DELETE',
+          target: id,
+          detail: { username: admin.username },
+        },
+        tx,
+      )
 
-    return updated
+      return updated
+    })
   }
 
   async resetAdminPassword(id: string, newPassword: string, currentAdminId: string) {
@@ -994,17 +1041,25 @@ export class AdminService {
       throw new NotFoundException(kbError(KBErrorCodes.ADMIN_USER_NOT_FOUND))
     }
 
+    // bcrypt.hash 在事务外执行：CPU 密集型操作不应在 DB 事务内拉长持锁时间
     const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS)
-    await this.prisma.adminUser.update({
-      where: { id },
-      data: { password: hashedPassword },
-    })
 
-    await this.auditLog.log({
-      adminId: currentAdminId,
-      action: 'ADMIN_PASSWORD_RESET',
-      target: id,
-      detail: { username: admin.username },
+    // 业务写与审计日志在同一事务，保证密码重置可追溯
+    await this.prisma.$transaction(async (tx) => {
+      await tx.adminUser.update({
+        where: { id },
+        data: { password: hashedPassword },
+      })
+
+      await this.auditLog.log(
+        {
+          adminId: currentAdminId,
+          action: 'ADMIN_PASSWORD_RESET',
+          target: id,
+          detail: { username: admin.username },
+        },
+        tx,
+      )
     })
 
     return { message: '密码重置成功' }
@@ -1025,17 +1080,25 @@ export class AdminService {
       throw new BadRequestException(kbError(KBErrorCodes.ADMIN_OLD_PASSWORD_INCORRECT))
     }
 
+    // bcrypt.hash 在事务外执行：CPU 密集型操作不应在 DB 事务内拉长持锁时间
     const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS)
-    await this.prisma.adminUser.update({
-      where: { id: adminId },
-      data: { password: hashedPassword },
-    })
 
-    await this.auditLog.log({
-      adminId,
-      action: 'ADMIN_PASSWORD_CHANGE',
-      target: adminId,
-      detail: { username: admin.username },
+    // 业务写与审计日志在同一事务，保证密码变更可追溯
+    await this.prisma.$transaction(async (tx) => {
+      await tx.adminUser.update({
+        where: { id: adminId },
+        data: { password: hashedPassword },
+      })
+
+      await this.auditLog.log(
+        {
+          adminId,
+          action: 'ADMIN_PASSWORD_CHANGE',
+          target: adminId,
+          detail: { username: admin.username },
+        },
+        tx,
+      )
     })
 
     return { message: '密码修改成功，请重新登录' }
@@ -1057,20 +1120,26 @@ export class AdminService {
       throw new ConflictException(kbError(KBErrorCodes.ADMIN_CONFIG_KEY_EXISTS))
     }
 
-    const config = await this.prisma.systemConfig.create({
-      data: { key, value },
-    })
+    // 业务写与审计日志在同一事务，保证新增配置可追溯
+    return this.prisma.$transaction(async (tx) => {
+      const config = await tx.systemConfig.create({
+        data: { key, value },
+      })
 
-    await this.auditLog.log({
-      adminId: adminId ?? 'system',
-      action: 'SYSTEM_CONFIG_CREATE',
-      target: key,
-      detail: { value },
-      ip: auditMeta?.ip,
-      userAgent: auditMeta?.userAgent,
-    })
+      await this.auditLog.log(
+        {
+          adminId: adminId ?? 'system',
+          action: 'SYSTEM_CONFIG_CREATE',
+          target: key,
+          detail: { value },
+          ip: auditMeta?.ip,
+          userAgent: auditMeta?.userAgent,
+        },
+        tx,
+      )
 
-    return config
+      return config
+    })
   }
 
   async updateSystemConfig(key: string, value: string, adminId?: string, auditMeta?: AuditMeta) {
@@ -1080,24 +1149,33 @@ export class AdminService {
     }
 
     const oldValue = existing.value
-    const config = await this.prisma.systemConfig.update({
-      where: { key },
-      data: { value },
+
+    // 业务写与审计日志在同一事务，保证配置变更可追溯
+    const config = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.systemConfig.update({
+        where: { key },
+        data: { value },
+      })
+
+      await this.auditLog.log(
+        {
+          adminId: adminId ?? 'system',
+          action: 'SYSTEM_CONFIG_UPDATE',
+          target: key,
+          detail: { old: oldValue, new: value },
+          ip: auditMeta?.ip,
+          userAgent: auditMeta?.userAgent,
+        },
+        tx,
+      )
+
+      return result
     })
 
-    // 风控规则变更后清空规则缓存
+    // 风控规则变更后清空规则缓存（事务外执行，避免 DB 事务持锁过久）
     if (key.startsWith('risk_rule:')) {
       this.riskEngine.clearCache()
     }
-
-    await this.auditLog.log({
-      adminId: adminId ?? 'system',
-      action: 'SYSTEM_CONFIG_UPDATE',
-      target: key,
-      detail: { old: oldValue, new: value },
-      ip: auditMeta?.ip,
-      userAgent: auditMeta?.userAgent,
-    })
 
     return config
   }

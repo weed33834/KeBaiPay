@@ -20,6 +20,42 @@ end
 return value
 `
 
+// 滑动窗口限流 Lua 脚本：ZSET 实现毫秒级精度，先清理过期成员再判断
+// KEYS[1] = ZSET key
+// ARGV[1] = now (毫秒)
+// ARGV[2] = window (毫秒)
+// ARGV[3] = limit
+// ARGV[4] = member (唯一标识，避免同一请求重复计入)
+// 返回 1 = 允许通过并已记录，0 = 已达上限拒绝
+const SLIDING_WINDOW_CHECK_SCRIPT = `
+local key = KEYS[1]
+local now = tonumber(ARGV[1])
+local window = tonumber(ARGV[2])
+local limit = tonumber(ARGV[3])
+local member = ARGV[4]
+redis.call('ZREMRANGEBYSCORE', key, 0, now - window)
+local count = redis.call('ZCARD', key)
+if count >= limit then
+  return 0
+end
+redis.call('ZADD', key, now, member)
+redis.call('PEXPIRE', key, window)
+return 1
+`
+
+// 滑动窗口计数 Lua 脚本：仅读取当前窗口内成员数，不写入
+// KEYS[1] = ZSET key
+// ARGV[1] = now (毫秒)
+// ARGV[2] = window (毫秒)
+// 返回当前窗口内成员数
+const SLIDING_WINDOW_COUNT_SCRIPT = `
+local key = KEYS[1]
+local now = tonumber(ARGV[1])
+local window = tonumber(ARGV[2])
+redis.call('ZREMRANGEBYSCORE', key, 0, now - window)
+return redis.call('ZCARD', key)
+`
+
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name)
@@ -228,5 +264,94 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     } finally {
       await this.releaseLock(lockKey, token)
     }
+  }
+
+  /**
+   * 滑动窗口限流（原子检查并记录）
+   *
+   * 基于 Redis ZSET 实现：score 存放请求时间戳，member 存放唯一标识。
+   * 每次调用先清理过期成员，再判断当前窗口内数量是否超限。
+   *
+   * @param key ZSET key
+   * @param windowMs 窗口大小（毫秒）
+   * @param limit 窗口内允许的最大请求数
+   * @param member 唯一成员标识（用于 ZADD，建议使用 nanosecond 时间戳 + 随机数防重复）
+   * @returns true=放行（已记录），false=拒绝（已达上限）
+   */
+  async slidingWindowCheck(
+    key: string,
+    windowMs: number,
+    limit: number,
+    member: string,
+  ): Promise<boolean> {
+    if (!this.client) {
+      // 风控场景下 Redis 不可用必须 fail-closed，由调用方处理异常
+      throw new Error(`Redis 未配置，滑动窗口限流不可用: ${key}`)
+    }
+    const now = Date.now()
+    const result = await this.ensureClient().eval(
+      SLIDING_WINDOW_CHECK_SCRIPT,
+      1,
+      key,
+      String(now),
+      String(windowMs),
+      String(limit),
+      member,
+    )
+    return Number(result) === 1
+  }
+
+  /**
+   * 滑动窗口计数（仅读取，不写入）
+   *
+   * 查询当前窗口内已记录的成员数，用于 recordTransaction 后查询当前已发生次数。
+   * 清理过期成员后返回 ZCARD。
+   *
+   * @param key ZSET key
+   * @param windowMs 窗口大小（毫秒）
+   * @returns 当前窗口内成员数
+   */
+  async slidingWindowCount(key: string, windowMs: number): Promise<number> {
+    if (!this.client) {
+      throw new Error(`Redis 未配置，滑动窗口计数不可用: ${key}`)
+    }
+    const now = Date.now()
+    const result = await this.ensureClient().eval(
+      SLIDING_WINDOW_COUNT_SCRIPT,
+      1,
+      key,
+      String(now),
+      String(windowMs),
+    )
+    return Number(result)
+  }
+
+  /**
+   * 滑动窗口记录（仅写入，不检查）
+   *
+   * 用于 recordTransaction：交易成功后追加一条记录到 ZSET，TTL 自动过期。
+   * 使用 nanosecond 时间戳 + 随机数作为 member，避免同一秒内多次交易相互覆盖。
+   *
+   * @param key ZSET key
+   * @param windowMs 窗口大小（毫秒），用作 TTL 上限
+   * @param member 唯一成员标识
+   */
+  async slidingWindowRecord(
+    key: string,
+    windowMs: number,
+    member: string,
+  ): Promise<void> {
+    if (!this.client) {
+      throw new Error(`Redis 未配置，滑动窗口记录不可用: ${key}`)
+    }
+    const client = this.ensureClient()
+    const now = Date.now()
+    // 使用 pipeline 减少往返：清理过期 + ZADD + PEXPIRE
+    await client
+      .multi()
+      .zremrangebyscore(key, 0, now - windowMs)
+      .zadd(key, now, member)
+      .pexpire(key, windowMs)
+      .exec()
   }
 }

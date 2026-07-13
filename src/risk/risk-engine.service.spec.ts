@@ -11,8 +11,8 @@ type PrismaMock = {
 }
 type RedisMock = {
   isEnabled: jest.Mock
-  get: jest.Mock
-  incr: jest.Mock
+  slidingWindowCount: jest.Mock
+  slidingWindowRecord: jest.Mock
 }
 
 // 默认单笔限额（分）：5 万元 = 5_000_000 分
@@ -39,8 +39,8 @@ describe('RiskEngineService', () => {
     }
     redis = {
       isEnabled: jest.fn().mockReturnValue(false),
-      get: jest.fn().mockResolvedValue(null),
-      incr: jest.fn().mockResolvedValue(1),
+      slidingWindowCount: jest.fn().mockResolvedValue(0),
+      slidingWindowRecord: jest.fn().mockResolvedValue(undefined),
     }
     service = new RiskEngineService(
       prisma as unknown as PrismaService,
@@ -56,11 +56,10 @@ describe('RiskEngineService', () => {
     prisma.systemConfig.findUnique.mockResolvedValue(null)
     prisma.transactionOrder.count.mockResolvedValue(0)
     prisma.transactionOrder.aggregate.mockResolvedValue({ _sum: { amount: 0 } })
-    // Redis 可用且计数为 0：ip_frequency 规则不拦截
-    // 之前 mock false 依赖 getIpWindowCount fail-open 返回 0，现改为 fail-closed 抛错，
-    // 需 mock Redis 可用并返回低计数
+    // Redis 可用且滑动窗口计数为 0：frequency / ip_frequency 规则不拦截
+    // ip_frequency 走 fail-closed，必须 mock Redis 可用
     redis.isEnabled.mockReturnValue(true)
-    redis.get.mockResolvedValue('0')
+    redis.slidingWindowCount.mockResolvedValue(0)
   }
 
   describe('check 风控检查', () => {
@@ -122,14 +121,7 @@ describe('RiskEngineService', () => {
     })
 
     it('DAILY_LIMIT(次数): 单日交易次数达到上限时拦截', async () => {
-      // 启用 Redis 以隔离 frequency 规则（frequency 走 Redis 而非 DB count）
       setupPassingMocks()
-      redis.isEnabled.mockReturnValue(true)
-      redis.get.mockImplementation((key: string) => {
-        if (key.startsWith('risk:freq:')) return Promise.resolve('0')
-        if (key.startsWith('risk:ipfreq:')) return Promise.resolve('0')
-        return Promise.resolve(null)
-      })
       // daily_count 使用 prisma.count，返回 50 = 上限
       prisma.transactionOrder.count.mockResolvedValue(DAILY_COUNT_LIMIT)
 
@@ -218,13 +210,11 @@ describe('RiskEngineService', () => {
 
     it('FREQUENT_TRANSACTION(IP高频): ip_frequency 规则 BLOCK 并生成 FREQUENT_TRANSACTION 事件', async () => {
       setupPassingMocks()
-      redis.isEnabled.mockReturnValue(true)
-      // 分桶 key：risk:ipfreq:{ip}:{windowSeconds}:{bucket}
-      // bucket 动态变化，用 startsWith 匹配 windowSeconds=60 的 IP 频率计数
-      redis.get.mockImplementation((key: string) => {
-        if (key.startsWith('risk:ipfreq:1.2.3.4:60:')) return Promise.resolve(String(IP_FREQ_WINDOW_MAX))
-        if (key.startsWith('risk:freq:')) return Promise.resolve('0')
-        return Promise.resolve(null)
+      // 滑动窗口 key 格式：risk:ipfreq:{ip}:{windowSeconds}
+      redis.slidingWindowCount.mockImplementation((key: string) => {
+        if (key.startsWith('risk:ipfreq:1.2.3.4:60')) return Promise.resolve(IP_FREQ_WINDOW_MAX)
+        if (key.startsWith('risk:freq:')) return Promise.resolve(0)
+        return Promise.resolve(0)
       })
 
       const result = await service.check({
@@ -242,6 +232,20 @@ describe('RiskEngineService', () => {
           level: RiskLevel.HIGH,
         }),
       })
+    })
+
+    it('IP_FREQUENCY fail-closed: Redis 不可用时抛错', async () => {
+      setupPassingMocks()
+      redis.isEnabled.mockReturnValue(false)
+
+      await expect(
+        service.check({
+          userId: 'u1',
+          type: 'TRANSFER',
+          amount: 1000,
+          ip: '1.2.3.4',
+        }),
+      ).rejects.toThrow(/Redis 不可用/)
     })
 
     it('BLACKLIST_IP: IP 命中黑名单时拦截', async () => {
@@ -316,11 +320,11 @@ describe('RiskEngineService', () => {
   })
 
   describe('recordTransaction 频率记录', () => {
-    it('Redis 可用时 incr 用户频率与 IP 频率计数(TTL=windowSeconds*2)', async () => {
+    it('Redis 可用时向用户频率与 IP 频率 ZSET 追加成员', async () => {
       // recordTransaction 调用 loadRules()，需 mock systemConfig.findMany 返回空数组（使用默认规则）
       prisma.systemConfig.findMany.mockResolvedValue([])
       redis.isEnabled.mockReturnValue(true)
-      redis.incr.mockResolvedValue(1)
+      redis.slidingWindowRecord.mockResolvedValue(undefined)
 
       await service.recordTransaction({
         userId: 'u1',
@@ -329,19 +333,21 @@ describe('RiskEngineService', () => {
         ip: '1.2.3.4',
       })
 
-      // 分桶 key 格式：risk:freq:{userId}:{type}:{windowSeconds}:{bucket}
-      // 默认 frequency 与 ip_frequency 规则 windowSeconds=60，TTL=60*2=120
-      expect(redis.incr).toHaveBeenCalledWith(
-        expect.stringMatching(/^risk:freq:u1:TRANSFER:60:\d+$/),
-        120,
+      // 默认 frequency 与 ip_frequency 规则 windowSeconds=60，windowMs=60000
+      // ZSET key 格式：risk:freq:{userId}:{type}:{windowSeconds}（不再含 bucket）
+      expect(redis.slidingWindowRecord).toHaveBeenCalledWith(
+        'risk:freq:u1:TRANSFER:60',
+        60000,
+        expect.any(String),
       )
-      expect(redis.incr).toHaveBeenCalledWith(
-        expect.stringMatching(/^risk:ipfreq:1.2.3.4:60:\d+$/),
-        120,
+      expect(redis.slidingWindowRecord).toHaveBeenCalledWith(
+        'risk:ipfreq:1.2.3.4:60',
+        60000,
+        expect.any(String),
       )
     })
 
-    it('Redis 不可用时不变更计数', async () => {
+    it('Redis 不可用时不调用 slidingWindowRecord', async () => {
       redis.isEnabled.mockReturnValue(false)
 
       await service.recordTransaction({
@@ -351,7 +357,59 @@ describe('RiskEngineService', () => {
         ip: '1.2.3.4',
       })
 
-      expect(redis.incr).not.toHaveBeenCalled()
+      expect(redis.slidingWindowRecord).not.toHaveBeenCalled()
+    })
+
+    it('不带 ip 时只记录用户频率，不调用 IP 维度记录', async () => {
+      prisma.systemConfig.findMany.mockResolvedValue([])
+      redis.isEnabled.mockReturnValue(true)
+
+      await service.recordTransaction({
+        userId: 'u1',
+        type: 'TRANSFER',
+        amount: 1000,
+        // 无 ip
+      })
+
+      // 用户维度被调用
+      expect(redis.slidingWindowRecord).toHaveBeenCalledWith(
+        'risk:freq:u1:TRANSFER:60',
+        60000,
+        expect.any(String),
+      )
+      // 所有调用都不应包含 risk:ipfreq
+      for (const call of redis.slidingWindowRecord.mock.calls) {
+        expect(call[0]).not.toMatch(/^risk:ipfreq:/)
+      }
+    })
+
+    it('不同窗口规则都应记录（自定义 120s 窗口）', async () => {
+      prisma.systemConfig.findMany.mockResolvedValue([
+        {
+          key: 'risk_rule:frequency',
+          value: JSON.stringify({ params: { windowSeconds: 120, windowMaxCount: 20 } }),
+        },
+      ])
+      redis.isEnabled.mockReturnValue(true)
+
+      await service.recordTransaction({
+        userId: 'u1',
+        type: 'TRANSFER',
+        amount: 1000,
+        ip: '1.2.3.4',
+      })
+
+      // 自定义 120s 窗口应被记录
+      expect(redis.slidingWindowRecord).toHaveBeenCalledWith(
+        'risk:freq:u1:TRANSFER:120',
+        120000,
+        expect.any(String),
+      )
+      expect(redis.slidingWindowRecord).toHaveBeenCalledWith(
+        'risk:ipfreq:1.2.3.4:120',
+        120000,
+        expect.any(String),
+      )
     })
   })
 

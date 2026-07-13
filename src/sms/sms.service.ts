@@ -366,40 +366,250 @@ export class SmsService implements OnModuleDestroy {
   }
 
   /**
-   * 腾讯云短信（需配 SMS_TENCENT_SECRET_ID 等，使用前应安装 tencentcloud-sdk-nodejs）
+   * 腾讯云短信
+   *
+   * 使用官方 SDK tencentcloud-sdk-nodejs-sms（API 3.0，TC3-HMAC-SHA256 签名）
+   * 接入步骤见 docs/sms-integration.md
    */
   private async sendTencentSms(phone: string, code: string, scene: string): Promise<SendSmsResult> {
-    try {
-      // 腾讯云 API 调用需 tencentcloud-sdk-nodejs 包；此处仅记录日志，实际接入需安装 SDK
-      // ⚠️ 待办建议：接入腾讯云官方 SDK（npm i tencentcloud-sdk-nodejs）后替换为真实调用
-      this.logger.warn(`[腾讯云] 短信 SDK 未接入，验证码未真正发送到 ${maskPhone(phone)}（场景: ${scene}）`);
+    if (!this.config?.secretId || !this.config?.secretKey) {
       return {
         success: false,
-        code: 'TENCENT_NOT_IMPLEMENTED',
-        message: '腾讯云短信 SDK 未接入，请联系管理员',
+        code: 'TENCENT_CONFIG_MISSING',
+        message: '腾讯云短信配置不完整，请配置 SMS_TENCENT_SECRET_ID 和 SMS_TENCENT_SECRET_KEY',
         provider: 'tencent',
-      };
+      }
+    }
+
+    try {
+      // 动态 require 避免未配置腾讯云时也加载 SDK
+      const tencentcloud = require('tencentcloud-sdk-nodejs-sms')
+      const SmsClient = tencentcloud.sms.v20210111.Client
+
+      const client = new SmsClient({
+        credential: {
+          secretId: this.config.secretId,
+          secretKey: this.config.secretKey,
+        },
+        region: 'ap-guangzhou',
+        profile: {
+          httpProfile: {
+            endpoint: 'sms.tencentcloudapi.com',
+            reqTimeout: 10,
+          },
+        },
+      })
+
+      // 腾讯云要求 E.164 格式：+8613800138000
+      const formattedPhone = phone.startsWith('+') ? phone : `+86${phone}`
+
+      const params = {
+        SmsSdkAppId: this.config.sdkAppId || '',
+        SignName: this.config.signName,
+        TemplateId: this.config.templateCode,
+        PhoneNumberSet: [formattedPhone],
+        // 模板变量：验证码场景只传 code，场景标识不传给用户模板
+        TemplateParamSet: [code],
+      }
+
+      const resp = await client.SendSms(params)
+      const sendStatus = resp?.SendStatusSet?.[0]
+
+      if (sendStatus?.Code === 'Ok') {
+        this.logger.log(`[腾讯云] 验证码发送成功: ${maskPhone(phone)} (场景: ${scene})`)
+        return {
+          success: true,
+          messageId: resp.RequestId || sendStatus.SerialNo || crypto.randomUUID(),
+          code: 'OK',
+          message: '发送成功',
+          provider: 'tencent',
+        }
+      }
+
+      // 腾讯云错误码详见 https://cloud.tencent.com/document/product/382/55981
+      this.logger.warn(`[腾讯云] 验证码发送失败: ${maskPhone(phone)} code=${sendStatus?.Code} message=${sendStatus?.Message}`)
+      return {
+        success: false,
+        code: sendStatus?.Code || 'TENCENT_ERROR',
+        message: sendStatus?.Message || '发送失败',
+        provider: 'tencent',
+      }
     } catch (error: any) {
-      return { success: false, code: 'TENCENT_ERROR', message: error.message || '发送失败', provider: 'tencent' };
+      this.logger.error(`[腾讯云] 短信调用异常: ${error.message}`, error.stack)
+      return {
+        success: false,
+        code: 'TENCENT_ERROR',
+        message: error.message || '发送失败',
+        provider: 'tencent',
+      }
     }
   }
 
   /**
-   * 华为云短信（需配 SMS_HUAWEI_APP_ID 等，使用前应安装 @huaweicloud/huaweicloud-sdk-core）
+   * 华为云短信
+   *
+   * 华为云官方推荐发送短信走 RESTful API（POST /sms/batchSendSms/v1），
+   * 鉴权用 SDK-HMAC-SHA256 签名（AK/SK），不依赖额外 SDK 包。
+   * 接入步骤见 docs/sms-integration.md
    */
   private async sendHuaweiSms(phone: string, code: string, scene: string): Promise<SendSmsResult> {
-    try {
-      // ⚠️ 待办建议：接入华为云官方 SDK 后替换为真实调用
-      this.logger.warn(`[华为云] 短信 SDK 未接入，验证码未真正发送到 ${maskPhone(phone)}（场景: ${scene}）`);
+    if (!this.config?.appId || !this.config?.appSecret) {
       return {
         success: false,
-        code: 'HUAWEI_NOT_IMPLEMENTED',
-        message: '华为云短信 SDK 未接入，请联系管理员',
+        code: 'HUAWEI_CONFIG_MISSING',
+        message: '华为云短信配置不完整，请配置 SMS_HUAWEI_APP_ID 和 SMS_HUAWEI_APP_SECRET',
         provider: 'huawei',
-      };
-    } catch (error: any) {
-      return { success: false, code: 'HUAWEI_ERROR', message: error.message || '发送失败', provider: 'huawei' };
+      }
     }
+
+    try {
+      const https = require('https')
+      const querystring = require('querystring')
+
+      // 华为云短信 API 端点（区域可配，默认 cn-north-4）
+      const endpoint = this.configService.get<string>('SMS_HUAWEI_ENDPOINT', 'smsapi.cn-north-4.myhuaweicloud.com')
+      const path = '/sms/batchSendSms/v1'
+
+      // 华为云要求 E.164 格式
+      const formattedPhone = phone.startsWith('+') ? phone : `+86${phone}`
+
+      // 签名通道号（sender）和模板 ID 需在华为云控制台申请
+      const sender = this.configService.get<string>('SMS_HUAWEI_SENDER', '')
+      const templateId = this.config.templateCode
+      const signature = this.config.signName
+
+      const body = querystring.stringify({
+        from: sender,
+        to: formattedPhone,
+        templateId,
+        // 模板变量：JSON 数组字符串，如 ["123456"]
+        templateParas: JSON.stringify([code]),
+        signature,
+        statusCallback: '',
+      })
+
+      // SDK-HMAC-SHA256 签名
+      const ak = this.config.appId
+      const sk = this.config.appSecret
+      const signedHeaders = this.buildHuaweiSignature(ak, sk, 'POST', path, '', body, endpoint)
+
+      const result = await new Promise<SendSmsResult>((resolve) => {
+        const options = {
+          hostname: endpoint,
+          port: 443,
+          path,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': signedHeaders.authorization,
+            'X-Sdk-Date': signedHeaders.sdkDate,
+            'Host': endpoint,
+            'Content-Length': Buffer.byteLength(body),
+          },
+        }
+
+        const req = https.request(options, (res: any) => {
+          let data = ''
+          res.on('data', (chunk: any) => { data += chunk })
+          res.on('end', () => {
+            try {
+              const resp = JSON.parse(data)
+              // 华为云响应 code: "000000" 表示成功
+              if (resp.code === '000000') {
+                this.logger.log(`[华为云] 验证码发送成功: ${maskPhone(phone)} (场景: ${scene})`)
+                resolve({
+                  success: true,
+                  messageId: resp.smsId || crypto.randomUUID(),
+                  code: 'OK',
+                  message: '发送成功',
+                  provider: 'huawei',
+                })
+              } else {
+                this.logger.warn(`[华为云] 验证码发送失败: ${maskPhone(phone)} code=${resp.code} message=${resp.description}`)
+                resolve({
+                  success: false,
+                  code: resp.code || 'HUAWEI_ERROR',
+                  message: resp.description || '发送失败',
+                  provider: 'huawei',
+                })
+              }
+            } catch {
+              resolve({ success: false, code: 'HUAWEI_PARSE_ERROR', message: '响应解析失败', provider: 'huawei' })
+            }
+          })
+        })
+        req.on('error', (err: Error) => {
+          resolve({ success: false, code: 'HUAWEI_NETWORK_ERROR', message: err.message, provider: 'huawei' })
+        })
+        req.setTimeout(10000, () => {
+          req.destroy()
+          resolve({ success: false, code: 'HUAWEI_TIMEOUT', message: '请求超时', provider: 'huawei' })
+        })
+        req.write(body)
+        req.end()
+      })
+
+      return result
+    } catch (error: any) {
+      this.logger.error(`[华为云] 短信调用异常: ${error.message}`, error.stack)
+      return {
+        success: false,
+        code: 'HUAWEI_ERROR',
+        message: error.message || '发送失败',
+        provider: 'huawei',
+      }
+    }
+  }
+
+  /**
+   * 构造华为云 SDK-HMAC-SHA256 签名
+   *
+   * 签名算法详见 https://support.huaweicloud.com/devg-apisign/api-sign-algorithm.html
+   */
+  private buildHuaweiSignature(
+    ak: string,
+    sk: string,
+    method: string,
+    path: string,
+    queryString: string,
+    body: string,
+    host: string,
+  ): { authorization: string; sdkDate: string } {
+    // 时间戳：RFC 3339 格式（用于 X-Sdk-Date）+ Basic 日期（用于签名）
+    const now = new Date()
+    const sdkDate = now.toISOString().replace(/\.\d{3}Z$/, 'Z')
+    const shortDate = sdkDate.slice(0, 10).replace(/-/g, '')
+
+    // 1. 构造 Canonical Request
+    const canonicalUri = this.encodeUri(path)
+    const canonicalQueryString = queryString // 此接口无 query
+    const canonicalHeaders = `content-type:application/x-www-form-urlencoded\nhost:${host}\nx-sdk-date:${sdkDate}\n`
+    const signedHeaders = 'content-type;host;x-sdk-date'
+    const bodyHash = crypto.createHash('sha256').update(body).digest('hex')
+    const canonicalRequest = `${method}\n${canonicalUri}\n${canonicalQueryString}\n${canonicalHeaders}\n${signedHeaders}\n${bodyHash}`
+
+    // 2. 构造 String to Sign
+    const hashCanonicalRequest = crypto.createHash('sha256').update(canonicalRequest).digest('hex')
+    const stringToSign = `SDK-HMAC-SHA256\n${sdkDate}\n${hashCanonicalRequest}`
+
+    // 3. 计算签名
+    const kDate = crypto.createHmac('sha256', `SDK${sk}`).update(shortDate).digest()
+    const kRegion = crypto.createHmac('sha256', kDate).update('cn-north-4').digest() // 区域需与 endpoint 一致
+    const kService = crypto.createHmac('sha256', kRegion).update('sms').digest()
+    const kSigning = crypto.createHmac('sha256', kService).update('SDK-HMAC-SHA256').digest()
+    const signature = crypto.createHmac('sha256', kSigning).update(stringToSign).digest('hex')
+
+    // 4. 构造 Authorization header
+    const authorization = `SDK-HMAC-SHA256 Access=${ak}, SignedHeaders=${signedHeaders}, Signature=${signature}`
+
+    return { authorization, sdkDate }
+  }
+
+  /**
+   * URI 编码（华为云规范：除 A-Z a-z 0-9 - _ . ~ 外均需 % 编码）
+   */
+  private encodeUri(uri: string): string {
+    return uri.split('/').map(seg => encodeURIComponent(seg)).join('/')
   }
 
   /**

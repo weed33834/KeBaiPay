@@ -414,7 +414,7 @@ export class RiskEngineService {
   }
 
   /**
-   * 获取指定 IP 在时间窗口内的访问次数（基于 Redis 分桶计数，仅读取）。
+   * 获取指定 IP 在时间窗口内的访问次数（基于 Redis ZSET 滑动窗口，仅读取）。
    *
    * Redis 不可用时抛错（fail-closed）：DB 无 IP 维度交易索引无法降级查询，
    * 若返回 0 会让 ip_frequency 规则在 Redis 故障期间形同虚设，攻击者可趁机
@@ -428,12 +428,9 @@ export class RiskEngineService {
     if (!this.redis.isEnabled()) {
       throw new Error('Redis 不可用，IP 频率风控无法降级，拒绝交易以 fail-closed')
     }
-    // 分桶 key：按 windowSeconds 切分时间窗口，每个窗口独立计数
-    // key 格式 risk:ipfreq:{ip}:{ruleWindow}:{bucket}
-    const bucket = Math.floor(Date.now() / 1000 / windowSeconds)
-    const key = `risk:ipfreq:${ip}:${windowSeconds}:${bucket}`
-    const count = await this.redis.get(key)
-    return count ? parseInt(count, 10) : 0
+    // 滑动窗口 key：固定 key（不再分桶），通过 ZSET score 维护时间维度
+    const key = `risk:ipfreq:${ip}:${windowSeconds}`
+    return this.redis.slidingWindowCount(key, windowSeconds * 1000)
   }
 
   private async getDailyCount(userId: string, type: TransactionType): Promise<number> {
@@ -467,17 +464,24 @@ export class RiskEngineService {
     return result._sum.amount || 0
   }
 
+  /**
+   * 获取用户在时间窗口内的交易次数。
+   *
+   * Redis 可用时使用 ZSET 滑动窗口计数（与 recordTransaction 写入的 key 对齐），
+   * 不可用时降级查询数据库 SUCCESS 交易记录。
+   *
+   * 注意：DB 降级与 Redis 计数语义存在差异——Redis 在交易成功后立即 incr，
+   * DB 只能查 SUCCESS 状态。Redis 故障期间 DB 降级可保证基本的频率控制能力，
+   * 不像 IP 维度那样无 DB 索引可直接 fail-closed。
+   */
   private async getWindowCount(
     userId: string,
     type: TransactionType,
     windowSeconds: number,
   ): Promise<number> {
     if (this.redis.isEnabled()) {
-      // 分桶 key：按 windowSeconds 切分时间窗口，与 recordTransaction 写入的 key 对齐
-      const bucket = Math.floor(Date.now() / 1000 / windowSeconds)
-      const key = `risk:freq:${userId}:${type}:${windowSeconds}:${bucket}`
-      const count = await this.redis.get(key)
-      return count ? parseInt(count, 10) : 0
+      const key = `risk:freq:${userId}:${type}:${windowSeconds}`
+      return this.redis.slidingWindowCount(key, windowSeconds * 1000)
     }
     // Redis 不可用时查询数据库
     const since = new Date(Date.now() - windowSeconds * 1000)
@@ -493,9 +497,11 @@ export class RiskEngineService {
   }
 
   /**
-   * 交易成功后记录频率（仅在成功后 incr，避免失败交易误计）
-   * 按所有启用的 frequency / ip_frequency 规则的 windowSeconds 分别 incr 分桶 key，
-   * TTL 设为 windowSeconds * 2，保证当前窗口和上一个窗口都在 Redis 中。
+   * 交易成功后记录频率（仅在成功后记录，避免失败交易误计）
+   * 按所有启用的 frequency / ip_frequency 规则的 windowSeconds 分别向 ZSET 追加成员，
+   * TTL 设为 windowSeconds，自动过期。
+   *
+   * ZSET member 使用 nanosecond 时间戳 + 随机数，避免同一秒内多次交易相互覆盖。
    */
   async recordTransaction(ctx: RiskCheckContext): Promise<void> {
     if (!this.redis.isEnabled()) return
@@ -512,16 +518,18 @@ export class RiskEngineService {
     // 兜底：如果没有配置任何频率规则，至少用默认 60s
     if (windowSet.size === 0) windowSet.add(60)
 
-    const nowSec = Math.floor(Date.now() / 1000)
+    // 唯一 member：避免同一请求不同窗口的 ZADD 相互覆盖
+    const member = `${Date.now()}-${Math.random().toString(36).slice(2)}-${ctx.type}`
+
     for (const ws of windowSet) {
-      const bucket = Math.floor(nowSec / ws)
-      // 用户频率计数：TTL 设为 ws*2，保证当前窗口和下一个窗口交界时仍有效
-      const userKey = `risk:freq:${ctx.userId}:${ctx.type}:${ws}:${bucket}`
-      await this.redis.incr(userKey, ws * 2)
-      // IP 频率计数
+      const windowMs = ws * 1000
+      // 用户频率 ZSET
+      const userKey = `risk:freq:${ctx.userId}:${ctx.type}:${ws}`
+      await this.redis.slidingWindowRecord(userKey, windowMs, member)
+      // IP 频率 ZSET
       if (ctx.ip) {
-        const ipKey = `risk:ipfreq:${ctx.ip}:${ws}:${bucket}`
-        await this.redis.incr(ipKey, ws * 2)
+        const ipKey = `risk:ipfreq:${ctx.ip}:${ws}`
+        await this.redis.slidingWindowRecord(ipKey, windowMs, member)
       }
     }
   }
