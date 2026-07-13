@@ -9,19 +9,19 @@ import {
 import { Prisma } from '@prisma/client'
 import { Request, Response } from 'express'
 import { KBErrorCodes } from './error-codes'
+import type { ApiErrorResponse } from './api-response'
 
 /**
  * 全局异常过滤器：统一所有未捕获异常的响应格式，避免内部错误信息泄露。
+ *
+ * 响应格式遵循 ApiErrorResponse 约定（见 src/common/api-response.ts）：
+ * { code: 'KBxxx', message: '...', data: null, traceId: '...' }
  *
  * 处理顺序：
  * 1. HttpException：业务主动抛出的异常，透传 status + message
  * 2. PrismaClientKnownRequestError：DB 约束/不存在错误映射为业务错误码
  * 3. PrismaClientValidationError：DB 类型校验错误映射为 400
  * 4. 其他 Error：统一返回 500 KB001，生产环境剥离 stack
- *
- * 响应格式与 ResponseTransformInterceptor 保持一致：
- * { code: 'KBxxx', message: '...', data: null }
- * 异常路径不走 interceptor，故在此直接构造最终响应体。
  */
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -54,7 +54,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
   private resolve(
     exception: unknown,
     traceId: string,
-  ): { status: number; payload: { code: string; message: string; data: null; traceId: string } } {
+  ): { status: number; payload: ApiErrorResponse } {
     // 1. 业务主动抛出的 HTTP 异常
     if (exception instanceof HttpException) {
       const status = exception.getStatus()
