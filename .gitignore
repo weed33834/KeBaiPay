@@ -12,6 +12,9 @@ dist/
 # Environment
 .env
 .env.local
+.env.production
+.env.staging
+.env.development
 
 # Logs
 logs
@@ -28,3 +31,19 @@ coverage/
 
 # OS
 .DS_Store
+
+# Certificates & keys
+*.pem
+*.key
+certs/
+
+# AI tooling local data
+.workbuddy/
+.ai-memory/
+.claude/
+.cursor/
+
+# Prisma compiled artifacts (source is seed.ts)
+prisma/seed.js
+prisma/seed.js.map
+prisma/seed.d.ts

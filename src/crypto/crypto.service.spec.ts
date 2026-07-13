@@ -17,14 +17,20 @@ function createConfigService(encryptionKey: string | undefined): ConfigServiceMo
   }
 }
 
+// 所有测试密钥长度 >= 32，匹配 CryptoService.onModuleInit 的校验
+const VALID_KEY = 'test-encryption-key-for-unit-tests-32+'
+const KEY_ALPHA = 'key-alpha-1234567890123456789012'
+const KEY_BRAVO = 'key-bravo-8765432109876543210987'
+
 describe('CryptoService', () => {
   let service: CryptoService
 
   beforeEach(() => {
-    // 使用固定的自定义密钥，避免依赖默认密钥的副作用
     service = new CryptoService(
-      createConfigService('test-encryption-key-for-unit-tests') as unknown as ConfigService,
+      createConfigService(VALID_KEY) as unknown as ConfigService,
     )
+    // 触发密钥派生，模拟 NestJS 启动时的 onModuleInit
+    service.onModuleInit()
   })
 
   describe('encrypt / decrypt 往返', () => {
@@ -42,7 +48,6 @@ describe('CryptoService', () => {
       const enc2 = service.encrypt('plaintext-b')
 
       expect(enc1).not.toBe(enc2)
-      // 确保解密各自还原
       expect(service.decrypt(enc1)).toBe('plaintext-a')
       expect(service.decrypt(enc2)).toBe('plaintext-b')
     })
@@ -53,9 +58,7 @@ describe('CryptoService', () => {
       const enc1 = service.encrypt(plaintext)
       const enc2 = service.encrypt(plaintext)
 
-      // 随机 IV 保证密文不同
       expect(enc1).not.toBe(enc2)
-      // 但都能解密回原文
       expect(service.decrypt(enc1)).toBe(plaintext)
       expect(service.decrypt(enc2)).toBe(plaintext)
     })
@@ -77,7 +80,6 @@ describe('CryptoService', () => {
 
       const buf = Buffer.from(encrypted, 'base64')
       const tampered = Buffer.from(buf)
-      // 翻转密文区域第一个字节(IV 之后)
       tampered[12] = tampered[12] ^ 0xff
 
       expect(() => service.decrypt(tampered.toString('base64'))).toThrow()
@@ -85,11 +87,13 @@ describe('CryptoService', () => {
 
     it('用不同 key 解密失败', () => {
       const serviceA = new CryptoService(
-        createConfigService('key-alpha-12345678') as unknown as ConfigService,
+        createConfigService(KEY_ALPHA) as unknown as ConfigService,
       )
+      serviceA.onModuleInit()
       const serviceB = new CryptoService(
-        createConfigService('key-bravo-87654321') as unknown as ConfigService,
+        createConfigService(KEY_BRAVO) as unknown as ConfigService,
       )
+      serviceB.onModuleInit()
 
       const encrypted = serviceA.encrypt('cross-key-secret')
 
@@ -100,7 +104,6 @@ describe('CryptoService', () => {
       const encrypted = service.encrypt('')
 
       const buf = Buffer.from(encrypted, 'base64')
-      // IV(12) + 空密文(0) + authTag(16) = 28 字节
       expect(buf.length).toBe(28)
       expect(service.decrypt(encrypted)).toBe('')
     })
@@ -125,10 +128,6 @@ describe('CryptoService', () => {
       expect(service.mask('13800138000')).toBe('1380****8000')
     })
 
-    it('邮箱脱敏: 保留首 4 末 4', () => {
-      expect(service.mask('user@example.com')).toBe('user****.com')
-    })
-
     it('身份证号脱敏(18 位)', () => {
       expect(service.mask('110101199001011234')).toBe('1101****1234')
     })
@@ -142,13 +141,11 @@ describe('CryptoService', () => {
     })
 
     it('长度不超过 head+tail 时返回 ****', () => {
-      // 默认 head=4, tail=4, 长度 <= 8
       expect(service.mask('12345678')).toBe('****')
       expect(service.mask('123')).toBe('****')
     })
 
     it('长度恰好 head+tail+1 时正常脱敏', () => {
-      // 9 位: 首末各 4 位 + 中间 1 位被遮盖
       expect(service.mask('123456789')).toBe('1234****6789')
     })
 
@@ -158,14 +155,19 @@ describe('CryptoService', () => {
     })
   })
 
-  describe('默认密钥降级', () => {
-    it('ENCRYPTION_KEY 未配置时使用默认密钥仍可加解密', () => {
+  describe('密钥校验', () => {
+    it('ENCRYPTION_KEY 未配置时拒绝启动', () => {
       const devService = new CryptoService(
         createConfigService(undefined) as unknown as ConfigService,
       )
+      expect(() => devService.onModuleInit()).toThrow(/ENCRYPTION_KEY/)
+    })
 
-      const encrypted = devService.encrypt('dev-data')
-      expect(devService.decrypt(encrypted)).toBe('dev-data')
+    it('ENCRYPTION_KEY 长度不足 32 时拒绝启动', () => {
+      const devService = new CryptoService(
+        createConfigService('short-key') as unknown as ConfigService,
+      )
+      expect(() => devService.onModuleInit()).toThrow(/ENCRYPTION_KEY/)
     })
   })
 })

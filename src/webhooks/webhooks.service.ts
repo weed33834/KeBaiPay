@@ -4,6 +4,7 @@ import {
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common'
+import { createHash } from 'crypto'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { PaymentChannelRegistry } from '../payment-channels/payment-channel.registry'
@@ -11,6 +12,7 @@ import { TransactionsService } from '../transactions/transactions.service'
 import { WithdrawalsService } from '../withdrawals/withdrawals.service'
 import { RefundService } from '../payment-channels/refund.service'
 import { KBErrorCodes, kbError } from '../common/error-codes'
+import type { ChannelConfig } from '../payment-channels/payment-channel.interface'
 
 /**
  * Webhook 处理服务
@@ -153,6 +155,7 @@ export class WebhooksService {
 
   /**
    * 验证渠道签名
+   * 签名验证失败或异常一律拒绝处理，防止伪造回调
    */
   private async verifySignature(
     channelCode: string,
@@ -160,30 +163,32 @@ export class WebhooksService {
     headers: Record<string, string>,
     callbackType: 'recharge' | 'payout' | 'refund',
   ): Promise<void> {
-    try {
-      const channelConfig = await this.channelRegistry.getEnabledConfig(channelCode)
-      const channel = this.channelRegistry.getChannel(channelCode)
+    const channelConfig = await this.channelRegistry.getEnabledConfig(channelCode)
+    const channel = this.channelRegistry.getChannel(channelCode)
 
-      // 调用渠道的签名验证方法（如果实现了）
-      if ('verifyWebhookSignature' in channel) {
-        const verifyFn = (channel as any).verifyWebhookSignature
-        if (typeof verifyFn === 'function') {
-          const isValid = verifyFn.call(channel, rawBody, headers, channelConfig.config)
-          if (!isValid) {
-            this.logger.error(`${channelCode} ${callbackType} 回调签名验证失败`)
-            await this.logCallback(channelCode, callbackType, rawBody, 'SIGNATURE_FAILED')
-            throw new BadRequestException(
-              kbError(KBErrorCodes.AUTHENTICATION_FAILED, `${channelCode} 回调签名验证失败`),
-            )
-          }
+    // 调用渠道的签名验证方法（如果实现了）
+    if ('verifyWebhookSignature' in channel) {
+      const verifyFn = (channel as { verifyWebhookSignature?: (raw: string, hdr: Record<string, string>, cfg: ChannelConfig) => boolean }).verifyWebhookSignature
+      if (typeof verifyFn === 'function') {
+        let isValid = false
+        try {
+          isValid = verifyFn.call(channel, rawBody, headers, channelConfig.config)
+        } catch (err) {
+          // 验签过程本身抛错视为验签失败，拒绝处理
+          this.logger.error(`${channelCode} ${callbackType} 验签异常: ${err}`)
+          await this.logCallback(channelCode, callbackType, rawBody, 'SIGNATURE_ERROR')
+          throw new BadRequestException(
+            kbError(KBErrorCodes.AUTHENTICATION_FAILED, `${channelCode} 回调验签异常`),
+          )
+        }
+        if (!isValid) {
+          this.logger.error(`${channelCode} ${callbackType} 回调签名验证失败`)
+          await this.logCallback(channelCode, callbackType, rawBody, 'SIGNATURE_FAILED')
+          throw new BadRequestException(
+            kbError(KBErrorCodes.AUTHENTICATION_FAILED, `${channelCode} 回调签名验证失败`),
+          )
         }
       }
-    } catch (error) {
-      if (error instanceof BadRequestException) {
-        throw error
-      }
-      this.logger.warn(`签名验证异常: ${error}`)
-      // 签名验证异常时不阻止处理（但记录警告）
     }
   }
 
@@ -240,8 +245,7 @@ export class WebhooksService {
     callbackType: string,
   ): string {
     // 使用渠道+类型+body hash 作为幂等键
-    const crypto = require('crypto')
-    const hash = crypto.createHash('sha256').update(rawBody).digest('hex')
+    const hash = createHash('sha256').update(rawBody).digest('hex')
     return `webhook:${channelCode}:${callbackType}:${hash}`
   }
 

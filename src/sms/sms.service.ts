@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 
@@ -32,15 +32,23 @@ export interface VerifyCodeResult {
 }
 
 @Injectable()
-export class SmsService {
+export class SmsService implements OnModuleDestroy {
   private readonly logger = new Logger(SmsService.name);
   private config: SmsConfig | null = null;
-  private codeStore = new Map<string, { code: string; expiresAt: number; attempts: number }>();
+  private codeStore = new Map<string, { code: string; expiresAt: number; attempts: number; createdAt: number }>();
+  private cleanupTimer: NodeJS.Timeout | null = null;
 
   constructor(private configService: ConfigService) {
     this.loadConfig();
     // 每5分钟清理过期验证码
-    setInterval(() => this.cleanExpiredCodes(), 5 * 60 * 1000);
+    this.cleanupTimer = setInterval(() => this.cleanExpiredCodes(), 5 * 60 * 1000);
+  }
+
+  onModuleDestroy() {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
   }
 
   private loadConfig() {
@@ -74,9 +82,9 @@ export class SmsService {
     // 存储验证码
     const key = `${phone}:${scene}`;
     const existing = this.codeStore.get(key);
-    
+
     // 防刷：60秒内不能重复发送
-    if (existing && Date.now() - (existing.expiresAt - 10 * 60 * 1000) < 60 * 1000) {
+    if (existing && Date.now() - existing.createdAt < 60 * 1000) {
       return {
         success: false,
         code: 'SMS频率限制',
@@ -85,7 +93,7 @@ export class SmsService {
       };
     }
 
-    this.codeStore.set(key, { code, expiresAt, attempts: 0 });
+    this.codeStore.set(key, { code, expiresAt, attempts: 0, createdAt: Date.now() });
 
     // 发送短信
     const result = await this.sendSms(phone, code, scene);
@@ -131,10 +139,10 @@ export class SmsService {
   }
 
   /**
-   * 生成6位数字验证码
+   * 生成6位数字验证码（密码学安全随机数）
    */
   private generateCode(): string {
-    return Math.floor(100000 + Math.random() * 900000).toString();
+    return crypto.randomInt(100000, 1000000).toString();
   }
 
   /**
@@ -279,13 +287,6 @@ export class SmsService {
    */
   private async sendMockSms(phone: string, code: string, scene: string): Promise<SendSmsResult> {
     this.logger.log(`[MOCK] 验证码 -> ${phone}: ${code} (场景: ${scene})`);
-    console.log(`\n====================================`);
-    console.log(`📱 短信验证码`);
-    console.log(`手机号: ${phone}`);
-    console.log(`验证码: ${code}`);
-    console.log(`场景: ${scene}`);
-    console.log(`====================================\n`);
-    
     return {
       success: true,
       messageId: crypto.randomUUID(),

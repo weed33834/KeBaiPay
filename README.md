@@ -579,8 +579,7 @@ src/
   transactions/    充值、交易订单
   transfers/       转账
   withdrawals/     提现
-  merchants/       商户入驻与应用
-  merchant/        商户配置
+  merchants/       商户入驻、应用与配置
   cashier/         统一收银台
   open-api/        开放 API 与 HMAC 签名验证
   admin/           管理后台
@@ -589,7 +588,7 @@ src/
   webhooks/        支付渠道回调
   redis/           Redis 封装（分布式锁 / 缓存）
   crypto/          敏感数据 AES-256-GCM 加解密
-  security/        启动安全校验、JWT、频率限制
+  security/        启动安全校验
   risk/            风控引擎
   health/          健康检查（存活 / 就绪 / 渠道）
   common/          中间件、拦截器、工具函数

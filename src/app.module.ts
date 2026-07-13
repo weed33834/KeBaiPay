@@ -31,8 +31,6 @@ import { HealthModule } from './health/health.module'
 import { NotificationsModule } from './notifications/notifications.module'
 import { SmsModule } from './sms/sms.module'
 import { RequestLoggingMiddleware } from './common/request-logging.middleware'
-import { SecurityHeadersMiddleware } from './common/security-headers.middleware'
-import { RateLimiterMiddleware } from './common/rate-limiter.middleware'
 import { ScheduleHealthModule } from './common/schedule-health.module'
 
 @Module({
@@ -81,10 +79,10 @@ import { ScheduleHealthModule } from './common/schedule-health.module'
     AdminModule,
     FinanceModule,
     WebhooksModule,
-NotificationsModule,
-HealthModule,
-ScheduleHealthModule,
-SmsModule,
+    NotificationsModule,
+    HealthModule,
+    ScheduleHealthModule,
+    SmsModule,
   ],
   providers: [
     {
@@ -95,12 +93,6 @@ SmsModule,
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(RateLimiterMiddleware)
-      .forRoutes('*')
-    consumer
-      .apply(SecurityHeadersMiddleware)
-      .forRoutes('*')
     consumer
       .apply(RequestLoggingMiddleware)
       .forRoutes('*')

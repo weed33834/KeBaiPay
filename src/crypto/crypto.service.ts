@@ -1,33 +1,38 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypto'
+import { maskBankCard } from '../common/mask'
 
 /**
  * 敏感字段加密服务
  *
  * 使用 AES-256-GCM 对称加密，适用于身份证号、银行卡号等敏感数据的加密存储。
- * 密钥从环境变量 ENCRYPTION_KEY 派生，生产环境必须配置。
+ * 密钥从环境变量 ENCRYPTION_KEY 派生，未配置时直接抛错拒绝启动（避免弱密钥加密敏感数据）。
  *
  * 存储格式：base64(iv:ciphertext:authTag)
  */
 @Injectable()
-export class CryptoService {
+export class CryptoService implements OnModuleInit {
   private readonly logger = new Logger(CryptoService.name)
-  private readonly key: Buffer
+  private key!: Buffer
 
   private readonly ALGORITHM = 'aes-256-gcm'
   private readonly IV_LENGTH = 12
+  // salt 固定值：用于 scrypt 密钥派生，与历史密文兼容；轮换密钥需重新加密全量数据
   private readonly SALT = 'kebaipay-salt-v1'
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(private readonly configService: ConfigService) {}
+
+  onModuleInit() {
     const encryptionKey = this.configService.get<string>('ENCRYPTION_KEY')
-    if (!encryptionKey) {
-      // 开发环境允许使用默认密钥，生产环境必须配置
-      this.logger.warn('ENCRYPTION_KEY 未配置，使用默认密钥（仅限开发环境）')
-      this.key = scryptSync('dev-default-key', this.SALT, 32)
-    } else {
-      this.key = scryptSync(encryptionKey, this.SALT, 32)
+    if (!encryptionKey || encryptionKey.length < 32) {
+      // 未配置或长度不足直接 fatal，避免开发环境误用弱密钥加密生产数据
+      throw new Error(
+        'ENCRYPTION_KEY 未配置或长度不足 32 字符，拒绝启动。请在 .env 中设置 32 字符以上的随机字符串。',
+      )
     }
+    this.key = scryptSync(encryptionKey, this.SALT, 32)
+    this.logger.log('ENCRYPTION_KEY 已加载，敏感字段加密服务就绪')
   }
 
   /**
@@ -63,11 +68,14 @@ export class CryptoService {
   }
 
   /**
-   * 脱敏显示：保留首尾各几位，中间用 * 替代
+   * 脱敏显示：委托给 common/mask 统一实现
+   * 保留首尾各几位，中间用 **** 替代
    */
   mask(value: string, headKeep = 4, tailKeep = 4): string {
     if (!value) return ''
     if (value.length <= headKeep + tailKeep) return '****'
+    // 默认参数与 maskBankCard 一致，直接复用
+    if (headKeep === 4 && tailKeep === 4) return maskBankCard(value)
     return `${value.slice(0, headKeep)}****${value.slice(-tailKeep)}`
   }
 }
