@@ -45,13 +45,15 @@
 - AppID (应用ID)
 - AppSecret (应用密钥)
 
-# 4. 集成SDK
-<script src="http://your-domain:3000/sdk/kebaipay.js"></script>
+# 4. 集成SDK（仅限商户后端 Node.js）
+# ⚠️ appSecret 禁止在浏览器端使用，否则可被任意用户窃取伪造请求
+const { KeBaiPay } = require('./path/to/kebaipay.js');
 
 # 5. 发起支付
 const sdk = new KeBaiPay({
-    appId: 'your-app-id',
-    appSecret: 'your-app-secret'
+    appId: process.env.KEBAIPAY_APP_ID,
+    appSecret: process.env.KEBAIPAY_APP_SECRET,  // 从环境变量读取
+    baseUrl: 'http://your-domain:3000'
 });
 ```
 
@@ -184,50 +186,47 @@ openssl rsa -in private_key.pem -pubout -out public_key.pem
 
 ### 1. 引入SDK
 
-#### 方式一：HTML引入
+> ⚠️ **安全警告**：appSecret 是商户密钥，**禁止在浏览器端使用**。SDK 仅限商户后端 Node.js 使用，浏览器端通过商户后端代理调用。
 
-```html
-<script src="http://your-domain:3000/sdk/kebaipay.js"></script>
-```
+#### 安装
 
-#### 方式二：npm安装
+SDK 文件位于 `public/sdk/kebaipay.js`，直接拷贝到商户后端项目即可：
 
 ```bash
-npm install kebaipay-sdk
+cp public/sdk/kebaipay.js /path/to/merchant-server/lib/
 ```
 
 ```javascript
-const KeBaiPay = require('kebaipay-sdk');
+const { KeBaiPay } = require('./lib/kebaipay.js');
 ```
 
 ### 2. 初始化SDK
 
 ```javascript
 const sdk = new KeBaiPay({
-    appId: 'merchant_xxxxxxxxxxxxxxxx',
-    appSecret: 'sk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+    appId: process.env.KEBAIPAY_APP_ID,
+    appSecret: process.env.KEBAIPAY_APP_SECRET,  // 从环境变量读取，禁止硬编码
     baseUrl: 'http://your-domain:3000'
 });
 ```
 
-### 3. 发起支付
+### 3. 发起支付（商户后端代理浏览器端）
 
 ```javascript
-// 创建订单
-const order = await sdk.createOrder({
-    merchantOrderNo: 'ORDER_' + Date.now(),
-    amount: 100,  // 金额（分）
-    subject: '商品购买',
-    body: '购买VIP会员',
-    notifyUrl: 'https://your-domain.com/payment/notify'
-});
+// 商户后端接口：浏览器调用此接口创建订单
+app.post('/create-order', async (req, res) => {
+    const order = await sdk.createOrder({
+        merchantOrderNo: 'ORDER_' + Date.now(),
+        amount: req.body.amount,  // 金额（分）
+        subject: req.body.subject,
+        callbackUrl: 'https://your-domain.com/payment/notify'
+    });
 
-if (order.success) {
-    // 跳转到支付页面
-    window.location.href = order.data.payUrl;
-} else {
-    alert('创建订单失败: ' + order.message);
-}
+    res.json({
+        success: true,
+        cashierUrl: order.cashierUrl  // 浏览器跳转到此 URL 完成支付
+    });
+});
 ```
 
 ### 4. 查询订单

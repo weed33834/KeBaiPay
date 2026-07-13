@@ -25,75 +25,56 @@
 
 ### 第三步：集成代码
 
-#### HTML方式
+> ⚠️ **安全警告**：appSecret 是商户密钥，**禁止在浏览器端使用**。以下仅展示商户后端（Node.js）接入方式。
 
-```html
-<!DOCTYPE html>
-<html>
-<head>
-    <title>我的网站</title>
-</head>
-<body>
-    <button onclick="pay()">立即支付</button>
-    
-    <script src="http://your-domain:3000/sdk/kebaipay.js"></script>
-    <script>
-        const sdk = new KeBaiPay({
-            appId: 'your-app-id',
-            appSecret: 'your-app-secret'
-        });
-        
-        async function pay() {
-            const order = await sdk.createOrder({
-                merchantOrderNo: 'ORDER_' + Date.now(),
-                amount: 100,  // 1元 = 100分
-                subject: '商品购买'
-            });
-            
-            if (order.success) {
-                window.location.href = order.data.payUrl;
-            }
-        }
-    </script>
-</body>
-</html>
-```
-
-#### Node.js方式
+#### Node.js 方式（推荐，商户后端）
 
 ```javascript
-const KeBaiPay = require('kebaipay-sdk');
+const { KeBaiPay } = require('./path/to/kebaipay.js');
+const express = require('express');
+const app = express();
+app.use(express.json());
 
 const sdk = new KeBaiPay({
-    appId: 'your-app-id',
-    appSecret: 'your-app-secret'
+    appId: process.env.KEBAIPAY_APP_ID,
+    appSecret: process.env.KEBAIPAY_APP_SECRET,  // 从环境变量读取，禁止硬编码
+    baseUrl: 'http://your-domain:3000'
 });
 
-// 创建订单
+// 浏览器端调用此接口创建订单（不要把 appSecret 暴露给浏览器）
 app.post('/create-order', async (req, res) => {
     const order = await sdk.createOrder({
         merchantOrderNo: 'ORDER_' + Date.now(),
         amount: req.body.amount,
         subject: req.body.subject,
-        notifyUrl: 'https://your-domain.com/payment/notify'
+        callbackUrl: 'https://your-domain.com/payment/notify'
     });
-    
-    res.json(order);
+
+    res.json({
+        success: true,
+        cashierUrl: order.cashierUrl  // 浏览器跳转到此 URL 完成支付
+    });
 });
 
 // 接收回调
 app.post('/payment/notify', (req, res) => {
-    const { orderNo, status, signature } = req.body;
-    
-    // 验证签名
-    if (sdk.verifyCallback(req.body, signature)) {
-        // 处理支付成功
+    const { orderNo, status } = req.body;
+    // 验证签名（参见 SDK_GUIDE.md 的 Webhook 签名验证章节）
+    if (status === 'PAID') {
         console.log('订单支付成功:', orderNo);
         res.json({ code: 0, message: 'success' });
     } else {
-        res.json({ code: -1, message: '签名验证失败' });
+        res.json({ code: -1, message: '未支付' });
     }
 });
+```
+
+#### 浏览器端流程（通过商户后端代理）
+
+```
+浏览器 ──POST /create-order──> 商户后端 ──SDK──> KeBaiPay
+浏览器 <──返回 cashierUrl─── 商户后端 <──返回─── KeBaiPay
+浏览器 ──跳转 cashierUrl──> KeBaiPay 收银台完成支付
 ```
 
 ### 第四步：测试支付
