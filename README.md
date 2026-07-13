@@ -181,7 +181,9 @@ start.bat
 | 变量名 | 必填 | 默认值 | 说明 |
 |--------|------|--------|------|
 | `DATABASE_URL` | 是（裸机） | 无 | PostgreSQL 连接串，docker compose 模式下自动注入 |
+| `POSTGRES_USER` | 否 | postgres | PostgreSQL 用户名，docker compose 模式下自动注入 |
 | `POSTGRES_PASSWORD` | **是** | 无 | PostgreSQL 密码，docker compose 必填 |
+| `POSTGRES_DB` | 否 | kebaipay | PostgreSQL 数据库名，docker compose 模式下自动注入 |
 | `REDIS_URL` | 否 | 无 | Redis 连接串，不配则降级为进程内缓存 |
 | `REDIS_PASSWORD` | 否 | redis | Redis 密码 |
 | `JWT_USER_SECRET` | **是** | 无 | 用户端 JWT 签名密钥，必须改 |
@@ -565,6 +567,8 @@ npm run migrate:deploy# 生产环境部署迁移
 | `GET /health` | 存活探针（liveness），进程在跑即返回 ok |
 | `GET /health/ready` | 就绪探针（readiness），检查 DB 与 Redis 连通性 |
 | `GET /health/channels` | 查看支付渠道状态 |
+| `GET /health/channels/summary` | 支付渠道健康摘要 |
+| `GET /health/schedules` | 调度任务健康状态 |
 | `GET /api/docs` | Swagger API 文档（仅非生产环境） |
 
 ---

@@ -1,14 +1,47 @@
 node_modules
 dist
-.env
-.env.local
-.env.*.local
 coverage
+
+# 环境变量与密钥
+.env
+.env.*
+!.env.example
+
+# 测试与 e2e（运行时不需要）
+*.spec.ts
+*.spec.js
+test/
+__tests__/
+jest.config.js
+jest-e2e.config.js
+
+# 文档与 IDE
 .vscode
 .idea
-*.log
-*.db
-.git
-.gitignore
 README.md
 docs
+*.md
+!prisma/*.md
+
+# 版本控制与 CI
+.git
+.gitignore
+.github
+.gitlab-ci.yml
+
+# 日志、临时、缓存
+*.log
+*.db
+*.tmp
+*.swp
+*.bak
+npm-debug.log*
+yarn-error.log*
+.cache
+.npm/
+
+# 运维/部署文件（镜像构建不需要）
+docker-compose*.yml
+start.sh
+start.bat
+HANDOVER.md

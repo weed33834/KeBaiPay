@@ -23,11 +23,18 @@ services:
       TZ: Asia/Shanghai
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - db-internal
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-kebaipay}']
       interval: 5s
       timeout: 5s
       retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: '1.0'
 
   redis:
     image: redis:7-alpine
@@ -42,11 +49,18 @@ services:
       TZ: Asia/Shanghai
     volumes:
       - redis_data:/data
+    networks:
+      - db-internal
     healthcheck:
       test: ['CMD-SHELL', 'redis-cli -a "$${REDIS_PASSWORD}" --no-auth-warning ping | grep -q PONG']
       interval: 5s
       timeout: 5s
       retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '0.5'
 
   app:
     build:
@@ -75,12 +89,29 @@ services:
       NODE_ENV: production
     ports:
       - '3000:3000'
+    networks:
+      - db-internal
+      - frontend
     healthcheck:
       test: ['CMD-SHELL', 'wget -qO- --timeout=3 http://localhost:3000/health/ready | grep -q "ok"']
       interval: 15s
       timeout: 5s
       retries: 5
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: '1.5'
+
+networks:
+  # 仅 app 容器加入，对外暴露端口
+  frontend:
+    driver: bridge
+  # app + postgres + redis 共享；DB 不暴露到 frontend
+  db-internal:
+    driver: bridge
+    internal: true
 
 volumes:
   postgres_data:
