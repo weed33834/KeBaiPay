@@ -415,13 +415,19 @@ export class RiskEngineService {
 
   /**
    * 获取指定 IP 在时间窗口内的访问次数（基于 Redis 分桶计数，仅读取）。
-   * Redis 不可用时返回 0。
+   *
+   * Redis 不可用时抛错（fail-closed）：DB 无 IP 维度交易索引无法降级查询，
+   * 若返回 0 会让 ip_frequency 规则在 Redis 故障期间形同虚设，攻击者可趁机
+   * 发动 IP 高频轰炸。抛错会阻断交易，但 Redis 故障是基础设施问题，此时
+   * 熔断比被攻击更安全。
    */
   private async getIpWindowCount(
     ip: string,
     windowSeconds: number,
   ): Promise<number> {
-    if (!this.redis.isEnabled()) return 0
+    if (!this.redis.isEnabled()) {
+      throw new Error('Redis 不可用，IP 频率风控无法降级，拒绝交易以 fail-closed')
+    }
     // 分桶 key：按 windowSeconds 切分时间窗口，每个窗口独立计数
     // key 格式 risk:ipfreq:{ip}:{ruleWindow}:{bucket}
     const bucket = Math.floor(Date.now() / 1000 / windowSeconds)

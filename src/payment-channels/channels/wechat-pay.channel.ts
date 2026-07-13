@@ -762,6 +762,8 @@ export class WechatPayChannel implements PaymentChannel {
       batch_id: string
       out_batch_no: string
       batch_status: string
+      total_num?: number
+      success_num?: number
     }
     try {
       resource = JSON.parse(decrypted)
@@ -769,10 +771,18 @@ export class WechatPayChannel implements PaymentChannel {
       throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '微信代付回调解密数据格式错误'))
     }
 
+    // batch_status=FINISHED 仅表示批次处理完成，不代表所有明细成功。
+    // 必须额外校验 success_num：单笔提现批次 total_num=1，要求 success_num>=1 才算成功。
+    // 否则渠道因 openid 错误/余额不足等拒绝放款时，平台误标 SUCCESS 会导致
+    // 用户钱被扣但渠道未放款的资金事故。
+    const isSuccess =
+      resource.batch_status === 'FINISHED' &&
+      (resource.success_num ?? 0) >= (resource.total_num ?? 1)
+
     return {
       channelOrderNo: resource.batch_id || '',
       orderNo: resource.out_batch_no || '',
-      status: resource.batch_status === 'FINISHED' ? 'SUCCESS' : 'FAILED',
+      status: isSuccess ? 'SUCCESS' : 'FAILED',
       signature: headers['wechatpay-signature'] || '',
     }
   }

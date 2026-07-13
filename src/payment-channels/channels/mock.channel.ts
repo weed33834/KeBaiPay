@@ -33,7 +33,8 @@ export class MockChannel implements PaymentChannel {
   readonly name = '模拟渠道'
 
   // 从环境变量读取：避免源码硬编码 secret 导致测试环境与生产环境共用同一密钥
-  // 未配置时使用 dev 专用默认值，SecurityValidator 已禁止生产环境启用 mock 渠道
+  // 未配置时使用 dev 专用默认值。生产环境通过 PaymentChannelRegistry.getChannel
+  // 拦截 mock 渠道调用（isProduction && code === 'mock' 时抛 NotFoundException）
   private readonly secret = process.env.MOCK_CHANNEL_SECRET || 'mock-channel-secret-dev-only'
 
   sign(data: string): string {

@@ -223,6 +223,18 @@ describe('UsersService', () => {
       prisma.identityVerification.findUnique.mockResolvedValue({
         realName: '李四',
         idCard: '110101199001011234',
+        status: RealNameStatus.VERIFIED,
+      })
+      await expect(service.resetPayPassword('u1', dto)).rejects.toThrow(BadRequestException)
+    })
+
+    it('实名未审核通过时拒绝重置支付密码', async () => {
+      // reject 后 identity 记录仍存在但 status=REJECTED，
+      // 不允许重置支付密码，避免未实名用户绕过审核
+      prisma.identityVerification.findUnique.mockResolvedValue({
+        realName: '张三',
+        idCard: '110101199001011234',
+        status: RealNameStatus.REJECTED,
       })
       await expect(service.resetPayPassword('u1', dto)).rejects.toThrow(BadRequestException)
     })
@@ -231,6 +243,7 @@ describe('UsersService', () => {
       prisma.identityVerification.findUnique.mockResolvedValue({
         realName: '张三',
         idCard: '110101199001011234',
+        status: RealNameStatus.VERIFIED,
       })
       prisma.user.update.mockResolvedValue({ id: 'u1', payPassword: 'hashed_654321' })
 

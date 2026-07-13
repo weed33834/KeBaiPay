@@ -9,7 +9,6 @@ import helmet from 'helmet'
 import compression from 'compression'
 import { AppModule } from './app.module'
 import { SecurityValidatorService } from './security/security-validator.service'
-import { SanitizationPipe } from './common/sanitization.pipe'
 import { ResponseTransformInterceptor } from './common/response-transform.interceptor'
 
 async function bootstrap() {
@@ -58,8 +57,11 @@ async function bootstrap() {
   const securityValidator = app.get(SecurityValidatorService)
   securityValidator.validate()
 
+  // 输入消毒改为输出时按上下文处理：邮件 HTML 转义在 notifications.service.ts 内做，
+  // CSV 公式注入防护在 csv.ts 内做，SQL 用 Prisma 参数化查询。
+  // 全局 HTML 转义会破坏 URL（callbackUrl 含 & 被转义为 &amp; 导致支付回调失败）、
+  // 密码哈希（转义后字符串与原始密码哈希不一致）、JSON 字段，违反 OWASP"输出消毒"原则。
   app.useGlobalPipes(
-    new SanitizationPipe(),
     new ValidationPipe({
       whitelist: true,
       transform: true,

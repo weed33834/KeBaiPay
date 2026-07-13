@@ -56,7 +56,11 @@ describe('RiskEngineService', () => {
     prisma.systemConfig.findUnique.mockResolvedValue(null)
     prisma.transactionOrder.count.mockResolvedValue(0)
     prisma.transactionOrder.aggregate.mockResolvedValue({ _sum: { amount: 0 } })
-    redis.isEnabled.mockReturnValue(false)
+    // Redis 可用且计数为 0：ip_frequency 规则不拦截
+    // 之前 mock false 依赖 getIpWindowCount fail-open 返回 0，现改为 fail-closed 抛错，
+    // 需 mock Redis 可用并返回低计数
+    redis.isEnabled.mockReturnValue(true)
+    redis.get.mockResolvedValue('0')
   }
 
   describe('check 风控检查', () => {
@@ -190,6 +194,8 @@ describe('RiskEngineService', () => {
     it('FREQUENT_TRANSACTION(高频告警): frequency 规则 WARN 不拦截但产生告警', async () => {
       // Redis 不可用 → frequency 走 DB count 回退
       setupPassingMocks()
+      // 本测试需要 Redis 不可用以验证 DB count 回退路径
+      redis.isEnabled.mockReturnValue(false)
       // count = 10 同时用于 daily_count(10 < 50 不触发) 和 frequency(10 >= 10 触发 WARN)
       prisma.transactionOrder.count.mockResolvedValue(FREQ_WINDOW_MAX)
 

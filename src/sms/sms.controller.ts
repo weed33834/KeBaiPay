@@ -21,10 +21,10 @@ export class SmsController {
       return { success: false, message: '手机号格式不正确' };
     }
 
-    // 提取客户端真实 IP（信任反向代理设置的 X-Forwarded-For）
-    const clientIp = this.getClientIp(req);
-
-    return this.smsService.sendVerificationCode(phone, scene as any, clientIp);
+    // 直接用 req.ip：main.ts 已设 trust proxy 1，Express 会自动从 X-Forwarded-For
+    // 取信任代理追加的最后一个 IP（即真实客户端 IP）。
+    // 不要手动取 X-Forwarded-For 首值，否则攻击者可伪造该头绕过 IP 限流。
+    return this.smsService.sendVerificationCode(phone, scene as any, req.ip);
   }
 
   /**
@@ -50,14 +50,5 @@ export class SmsController {
   @Get('config')
   getConfig() {
     return this.smsService.getConfigStatus();
-  }
-
-  private getClientIp(req: Request): string | undefined {
-    // 信任 X-Forwarded-For（main.ts 已设 trust proxy）
-    const xff = req.headers['x-forwarded-for']
-    if (typeof xff === 'string' && xff.length > 0) {
-      return xff.split(',')[0].trim()
-    }
-    return req.ip
   }
 }

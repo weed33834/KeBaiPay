@@ -233,6 +233,11 @@ export class UsersService {
     if (!identity) {
       throw new BadRequestException(kbError(KBErrorCodes.IDENTITY_NOT_FOUND))
     }
+    // 必须实名已审核通过：reject 后的 identity 记录仍存在，但 status=REJECTED，
+    // 不允许重置支付密码，避免未实名用户通过 realName+idCard 绕过审核设置 payPassword
+    if (identity.status !== RealNameStatus.VERIFIED) {
+      throw new BadRequestException(kbError(KBErrorCodes.REAL_NAME_REQUIRED))
+    }
     // 解密存储的身份证号进行比较
     const decryptedIdCard = this.crypto.decrypt(identity.idCard)
     if (identity.realName !== dto.realName || decryptedIdCard !== dto.idCard) {

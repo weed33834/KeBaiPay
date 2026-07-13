@@ -288,12 +288,15 @@ export class RefundService {
         }
 
         // 更新退款状态
+        // channelOrderNo 不用回调返回的纯 trade_no 覆盖已有值：
+        // refund() 存的是 ${trade_no}:${out_request_no} 复合格式，queryRefund 依赖它解析。
+        // 回调只返回纯 trade_no，覆盖后 queryRefund 会因格式非法永久失效。
         const newStatus = result.status === 'SUCCESS' ? TransactionStatus.SUCCESS : TransactionStatus.FAILED
         await tx.transactionOrder.update({
           where: { id: refundOrder.id },
           data: {
             status: newStatus,
-            channelOrderNo: result.channelRefundNo || refundOrder.channelOrderNo,
+            channelOrderNo: refundOrder.channelOrderNo || result.channelRefundNo,
             completedAt: new Date(),
           },
         })

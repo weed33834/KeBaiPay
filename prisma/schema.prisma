@@ -71,7 +71,7 @@ model IdentityVerification {
   idCard    String         @unique @map("id_card")
   status    String         @default("PENDING")
   // 审核通过前暂存支付密码哈希，审核通过时写入 user.payPassword；
-  // 审核拒绝时此字段保留供审计但不会写入 user 表，确保未实名用户不能使用支付密码
+  // 审核拒绝时清空此字段，避免保留未生效的密码哈希；user.payPassword 永不写入
   pendingPayPasswordHash String? @map("pending_pay_password_hash")
   createdAt DateTime       @default(now()) @map("created_at")
   updatedAt DateTime       @updatedAt @map("updated_at")
