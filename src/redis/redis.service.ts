@@ -140,6 +140,24 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return this.ensureClient().ttl(key)
   }
 
+  /**
+   * 原子限流：SET key value NX EX ttl
+   * 成功返回 true（首次设置），失败返回 false（key 已存在，限流生效）
+   * 用于"60秒内只能发一次"这类固定窗口限流
+   */
+  async setRateLimit(key: string, ttlSeconds: number): Promise<boolean> {
+    if (!this.client) {
+      // 开发环境无 Redis 时降级为进程内实现
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('Redis 未配置，限流不可用。生产环境必须配置 REDIS_URL。')
+      }
+      this.logger.warn(`开发环境无 Redis，限流降级为进程内: ${key}`)
+      return true
+    }
+    const result = await this.ensureClient().set(key, '1', 'EX', ttlSeconds, 'NX')
+    return result === 'OK'
+  }
+
   /** 健康检查用：返回 PONG 表示连接正常 */
   async ping(): Promise<string> {
     if (!this.client) {

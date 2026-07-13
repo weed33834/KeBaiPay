@@ -414,20 +414,20 @@ export class RiskEngineService {
   }
 
   /**
-   * 获取指定 IP 在时间窗口内的访问次数（基于 Redis 计数，仅读取）。
+   * 获取指定 IP 在时间窗口内的访问次数（基于 Redis 分桶计数，仅读取）。
    * Redis 不可用时返回 0。
    */
   private async getIpWindowCount(
     ip: string,
     windowSeconds: number,
   ): Promise<number> {
-    void windowSeconds // 计数依赖 recordTransaction 中 incr 时设置的 TTL
-    const key = `risk:ipfreq:${ip}`
-    if (this.redis.isEnabled()) {
-      const count = await this.redis.get(key)
-      return count ? parseInt(count, 10) : 0
-    }
-    return 0
+    if (!this.redis.isEnabled()) return 0
+    // 分桶 key：按 windowSeconds 切分时间窗口，每个窗口独立计数
+    // key 格式 risk:ipfreq:{ip}:{ruleWindow}:{bucket}
+    const bucket = Math.floor(Date.now() / 1000 / windowSeconds)
+    const key = `risk:ipfreq:${ip}:${windowSeconds}:${bucket}`
+    const count = await this.redis.get(key)
+    return count ? parseInt(count, 10) : 0
   }
 
   private async getDailyCount(userId: string, type: TransactionType): Promise<number> {
@@ -466,9 +466,10 @@ export class RiskEngineService {
     type: TransactionType,
     windowSeconds: number,
   ): Promise<number> {
-    // 使用 Redis 滑动窗口计数（只读，不在检查阶段 incr）
-    const key = `risk:freq:${userId}:${type}`
     if (this.redis.isEnabled()) {
+      // 分桶 key：按 windowSeconds 切分时间窗口，与 recordTransaction 写入的 key 对齐
+      const bucket = Math.floor(Date.now() / 1000 / windowSeconds)
+      const key = `risk:freq:${userId}:${type}:${windowSeconds}:${bucket}`
       const count = await this.redis.get(key)
       return count ? parseInt(count, 10) : 0
     }
@@ -487,16 +488,34 @@ export class RiskEngineService {
 
   /**
    * 交易成功后记录频率（仅在成功后 incr，避免失败交易误计）
+   * 按所有启用的 frequency / ip_frequency 规则的 windowSeconds 分别 incr 分桶 key，
+   * TTL 设为 windowSeconds * 2，保证当前窗口和上一个窗口都在 Redis 中。
    */
   async recordTransaction(ctx: RiskCheckContext): Promise<void> {
-    if (this.redis.isEnabled()) {
-      const key = `risk:freq:${ctx.userId}:${ctx.type}`
-      // 使用合理 TTL（5 分钟），覆盖短窗口频率规则
-      await this.redis.incr(key, 300)
-      // IP 频率记录
+    if (!this.redis.isEnabled()) return
+
+    // 收集所有启用的频率规则的 windowSeconds（去重）
+    const windowSet = new Set<number>()
+    const rules = await this.loadRules()
+    for (const rule of rules) {
+      if (rule.enabled && (rule.code === 'frequency' || rule.code === 'ip_frequency')) {
+        const ws = rule.params.windowSeconds || 60
+        windowSet.add(ws)
+      }
+    }
+    // 兜底：如果没有配置任何频率规则，至少用默认 60s
+    if (windowSet.size === 0) windowSet.add(60)
+
+    const nowSec = Math.floor(Date.now() / 1000)
+    for (const ws of windowSet) {
+      const bucket = Math.floor(nowSec / ws)
+      // 用户频率计数：TTL 设为 ws*2，保证当前窗口和下一个窗口交界时仍有效
+      const userKey = `risk:freq:${ctx.userId}:${ctx.type}:${ws}:${bucket}`
+      await this.redis.incr(userKey, ws * 2)
+      // IP 频率计数
       if (ctx.ip) {
-        const ipKey = `risk:ipfreq:${ctx.ip}`
-        await this.redis.incr(ipKey, 300)
+        const ipKey = `risk:ipfreq:${ctx.ip}:${ws}:${bucket}`
+        await this.redis.incr(ipKey, ws * 2)
       }
     }
   }

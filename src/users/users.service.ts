@@ -138,13 +138,15 @@ export class UsersService {
       throw new BadRequestException(kbError(KBErrorCodes.VERIFICATION_PENDING))
     }
 
-    // 设置支付密码
+    // 支付密码哈希暂存到 IdentityVerification，审核通过后才写入 user.payPassword。
+    // 此前直接写入 user.payPassword 会导致：管理员 reject 后用户仍能用支付密码转账/提现，绕过实名。
     const payPasswordHash = await this.hashPassword(dto.payPassword)
 
     // 加密身份证号后存储
     const encryptedIdCard = this.crypto.encrypt(dto.idCard)
 
     // 提交人工审核：状态置 PENDING，不直接通过
+    // payPasswordHash 暂存到 identityVerification，不写入 user 表
     const [identity] = await this.prisma.$transaction([
       this.prisma.identityVerification.upsert({
         where: { userId },
@@ -153,18 +155,20 @@ export class UsersService {
           realName: dto.realName,
           idCard: encryptedIdCard,
           status: RealNameStatus.PENDING,
+          pendingPayPasswordHash: payPasswordHash,
         },
         update: {
           realName: dto.realName,
           idCard: encryptedIdCard,
           status: RealNameStatus.PENDING,
+          pendingPayPasswordHash: payPasswordHash,
         },
       }),
       this.prisma.user.update({
         where: { id: userId },
         data: {
           realNameStatus: RealNameStatus.PENDING,
-          payPassword: payPasswordHash,
+          // 不写 payPassword：审核通过前用户不能使用支付密码
         },
       }),
     ])

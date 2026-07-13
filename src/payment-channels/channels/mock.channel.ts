@@ -32,7 +32,9 @@ export class MockChannel implements PaymentChannel {
   readonly code = 'mock'
   readonly name = '模拟渠道'
 
-  private readonly secret = 'mock-channel-secret'
+  // 从环境变量读取：避免源码硬编码 secret 导致测试环境与生产环境共用同一密钥
+  // 未配置时使用 dev 专用默认值，SecurityValidator 已禁止生产环境启用 mock 渠道
+  private readonly secret = process.env.MOCK_CHANNEL_SECRET || 'mock-channel-secret-dev-only'
 
   sign(data: string): string {
     return createHmac('sha256', this.secret).update(data).digest('hex')

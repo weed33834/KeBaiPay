@@ -21,6 +21,7 @@ type TxClientMock = {
 
 /**
  * 复刻服务中的 hash 计算逻辑，用于在测试中生成正确哈希以构造完整链条
+ * userAgent 纳入 hash 内容，防止 DB 攻击者篡改 userAgent 而不破坏哈希链
  */
 function computeHash(fields: {
   adminId: string
@@ -28,6 +29,7 @@ function computeHash(fields: {
   target: string | null
   detail: string | null
   ip: string | null
+  userAgent: string | null
   previousHash: string
 }): string {
   const content = JSON.stringify({
@@ -36,6 +38,7 @@ function computeHash(fields: {
     target: fields.target,
     detail: fields.detail,
     ip: fields.ip,
+    userAgent: fields.userAgent,
     previousHash: fields.previousHash,
   })
   return createHash('sha256').update(content).digest('hex')
@@ -51,6 +54,7 @@ function makeLogEntry(opts: {
   target?: string | null
   detail?: unknown
   ip?: string | null
+  userAgent?: string | null
   previousHash: string
   createdAt: Date
 }): {
@@ -68,12 +72,14 @@ function makeLogEntry(opts: {
   const target = opts.target ?? null
   const detail = opts.detail == null ? null : JSON.stringify(opts.detail)
   const ip = opts.ip ?? null
+  const userAgent = opts.userAgent ?? null
   const hash = computeHash({
     adminId: opts.adminId,
     action: opts.action,
     target,
     detail,
     ip,
+    userAgent,
     previousHash: opts.previousHash,
   })
   return {
@@ -83,7 +89,7 @@ function makeLogEntry(opts: {
     target,
     detail,
     ip,
-    userAgent: null,
+    userAgent,
     hash,
     previousHash: opts.previousHash,
     createdAt: opts.createdAt,
@@ -147,7 +153,7 @@ describe('AuditLogService', () => {
       })
     })
 
-    it('hash 为 SHA256(adminId+action+target+detail+ip+previousHash) 的正确值', async () => {
+    it('hash 为 SHA256(adminId+action+target+detail+ip+userAgent+previousHash) 的正确值', async () => {
       innerTx.adminOperationLog.findFirst.mockResolvedValue(null)
 
       await service.log({
@@ -156,6 +162,7 @@ describe('AuditLogService', () => {
         target: 'u1',
         detail: { amount: 1000, reason: '补偿' },
         ip: '1.2.3.4',
+        userAgent: 'curl/8.0',
       })
 
       const createCall = innerTx.adminOperationLog.create.mock.calls[0][0] as {
@@ -167,6 +174,7 @@ describe('AuditLogService', () => {
         target: 'u1',
         detail: JSON.stringify({ amount: 1000, reason: '补偿' }),
         ip: '1.2.3.4',
+        userAgent: 'curl/8.0',
         previousHash: GENESIS_HASH,
       })
       expect(createCall.data.hash).toBe(expectedHash)
@@ -202,30 +210,26 @@ describe('AuditLogService', () => {
       expect(prisma.$transaction).not.toHaveBeenCalled()
     })
 
-    it('create 写入失败时不抛错(降级不阻塞业务)', async () => {
+    it('create 写入失败时抛错(强制业务事务回滚，不降级)', async () => {
+      // 写入失败必须抛出异常：资金类操作的审计日志是合规与追责的最后一道凭证，
+      // 业务事务因异常回滚可保证不会出现"资金已动但审计日志丢失"的不一致状态
       innerTx.adminOperationLog.create.mockRejectedValue(new Error('DB write failed'))
 
-      // 不应抛出异常
       await expect(
         service.log({ adminId: 'admin1', action: 'ACT' }),
-      ).resolves.toBeUndefined()
+      ).rejects.toThrow('DB write failed')
     })
 
-    it('咨询锁失败时降级为直接写入(prisma)', async () => {
-      // $transaction 抛错模拟咨询锁不可用
+    it('咨询锁失败时抛错(不降级为直接写入，避免哈希链分叉)', async () => {
+      // 咨询锁失败必须抛出异常：不降级为"直接写入"，否则并发写入会导致哈希链分叉，
+      // 破坏审计链完整性
       prisma.$transaction.mockRejectedValue(new Error('advisory lock unavailable'))
-      prisma.adminOperationLog.findFirst.mockResolvedValue(null)
-      prisma.adminOperationLog.create.mockResolvedValue({})
 
-      await service.log({ adminId: 'admin1', action: 'ACT' })
-
-      // 降级后使用 prisma 直接写入
-      expect(prisma.adminOperationLog.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          adminId: 'admin1',
-          previousHash: GENESIS_HASH,
-        }),
-      })
+      await expect(
+        service.log({ adminId: 'admin1', action: 'ACT' }),
+      ).rejects.toThrow('advisory lock unavailable')
+      // 不应降级到 prisma 直接写入
+      expect(prisma.adminOperationLog.create).not.toHaveBeenCalled()
     })
   })
 

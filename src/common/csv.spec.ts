@@ -34,6 +34,29 @@ describe('common/csv', () => {
     it('空字符串原样返回', () => {
       expect(escapeCsvField('')).toBe('')
     })
+
+    it('公式注入防护: 以 = 开头加单引号前缀', () => {
+      // =HYPERLINK 等公式触发字段需在前面加 ' 阻止 Excel 解析为公式。
+      // 加 ' 后字段中含 "，会再触发双引号包裹逻辑："'=HYPERLINK(""http://evil"",""点击"")"
+      expect(escapeCsvField('=HYPERLINK("http://evil","点击")')).toBe(
+        `"'=HYPERLINK(""http://evil"",""点击"")"`,
+      )
+    })
+
+    it('公式注入防护: + - @ 制表符 回车 开头均加单引号前缀', () => {
+      expect(escapeCsvField('+1+1')).toBe("'+1+1")
+      expect(escapeCsvField('-1+1')).toBe("'-1+1")
+      expect(escapeCsvField('@SUM(A1)')).toBe("'@SUM(A1)")
+      expect(escapeCsvField('\tcol1')).toBe("'\tcol1")
+      // \r\ninject 加 ' 后含换行，触发双引号包裹
+      expect(escapeCsvField('\r\ninject')).toBe('"\'\r\ninject"')
+    })
+
+    it('公式注入防护: 普通负数不受影响（如 -1 不在公式场景下）', () => {
+      // 注意：当前实现对所有 - 开头字段加 '，避免负数被误判为公式
+      // 财务报表中 -100 表示支出，加 ' 后在 Excel 中仍显示为 -100（' 不可见）
+      expect(escapeCsvField('-100')).toBe("'-100")
+    })
   })
 
   describe('toCsv', () => {

@@ -52,59 +52,49 @@ export class AuditLogService {
       const previousHash = lastLog?.hash || this.GENESIS_HASH
 
       // 计算当前日志的 hash（仅使用持久化字段，便于后续校验内容完整性）
+      // userAgent 纳入 hash 防止 DB 攻击者篡改 userAgent 而不破坏哈希链
       const content = JSON.stringify({
         adminId,
         action,
         target: target ?? null,
         detail: detail == null ? null : JSON.stringify(detail),
         ip: ip ?? null,
+        userAgent: userAgent ?? null,
         previousHash,
       })
       const hash = createHash('sha256').update(content).digest('hex')
 
-      try {
-        await client.adminOperationLog.create({
-          data: {
-            adminId,
-            action,
-            target: target ?? null,
-            detail: detail == null ? null : JSON.stringify(detail),
-            ip,
-            userAgent,
-            hash,
-            previousHash,
-          },
-        })
-      } catch (error) {
-        // 写入失败时降级：不阻塞业务，仅记录错误
-        this.logger.error(
-          `审计日志写入失败：${error instanceof Error ? error.message : String(error)}`,
-        )
-      }
+      // 写入失败必须抛出异常：资金类操作（调账、提现审核、用户状态变更）的审计日志
+      // 是合规与追责的最后一道凭证，丢失会让资金操作无法追溯。
+      // 业务事务会因异常回滚，保证不会出现"资金已动但审计日志丢失"的不一致状态。
+      await client.adminOperationLog.create({
+        data: {
+          adminId,
+          action,
+          target: target ?? null,
+          detail: detail == null ? null : JSON.stringify(detail),
+          ip,
+          userAgent,
+          hash,
+          previousHash,
+        },
+      })
     }
 
     // 使用 PostgreSQL 事务级咨询锁串行化日志写入，防止并发 findFirst 读到相同
     // previousHash 导致哈希链分叉。pg_advisory_xact_lock 在事务提交/回滚时自动释放，
     // 因此即使 log() 在外部事务内调用，锁也会持有到外部事务提交，彻底消除竞态。
-    try {
-      if (tx) {
-        // 已在事务内：获取事务级咨询锁后写入
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(8831, 1)`
-        await doLog(tx)
-      } else {
-        // 非事务调用：用短事务 + 咨询锁包裹读+写
-        await this.prisma.$transaction(async (innerTx) => {
-          await innerTx.$executeRaw`SELECT pg_advisory_xact_lock(8831, 1)`
-          await doLog(innerTx)
-        })
-      }
-    } catch (error) {
-      // 降级：咨询锁不可用（非 PG 数据库）时直接写入，不阻塞业务
-      this.logger.warn(
-        `审计日志咨询锁失败，降级为直接写入：${error instanceof Error ? error.message : String(error)}`,
-      )
-      await doLog(tx || this.prisma).catch((err: unknown) => {
-        this.logger.error(`审计日志降级写入失败：${err instanceof Error ? err.message : String(err)}`)
+    // 咨询锁失败必须抛出异常：不降级为"直接写入"，否则并发写入会导致哈希链分叉，
+    // 破坏审计链完整性。生产环境必须用 PostgreSQL。
+    if (tx) {
+      // 已在事务内：获取事务级咨询锁后写入
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(8831, 1)`
+      await doLog(tx)
+    } else {
+      // 非事务调用：用短事务 + 咨询锁包裹读+写
+      await this.prisma.$transaction(async (innerTx) => {
+        await innerTx.$executeRaw`SELECT pg_advisory_xact_lock(8831, 1)`
+        await doLog(innerTx)
       })
     }
   }
@@ -143,13 +133,14 @@ export class AuditLogService {
           )
           return log.id
         }
-        // 校验内容哈希：从持久化字段重新计算并比对
+        // 校验内容哈希：从持久化字段重新计算并比对（与 doLog 保持一致，含 userAgent）
         const content = JSON.stringify({
           adminId: log.adminId,
           action: log.action,
           target: log.target,
           detail: log.detail,
           ip: log.ip,
+          userAgent: log.userAgent,
           previousHash: log.previousHash,
         })
         const expectedHash = createHash('sha256').update(content).digest('hex')

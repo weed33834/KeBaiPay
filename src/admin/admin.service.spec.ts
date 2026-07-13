@@ -180,6 +180,32 @@ describe('AdminService', () => {
         expect.anything(),
       )
     })
+
+    it('审核通过且 pendingPayPasswordHash 存在时，把哈希写入 user.payPassword', async () => {
+      // 审核通过前 payPasswordHash 暂存在 identityVerification.pendingPayPasswordHash，
+      // 通过后才写入 user.payPassword，确保未实名用户不能使用支付密码
+      prisma.identityVerification.findUnique.mockResolvedValue({
+        id: 'iv1',
+        userId: 'u1',
+        status: 'PENDING',
+        pendingPayPasswordHash: 'bcrypt$hash$xxx',
+      })
+      prisma.identityVerification.updateMany.mockResolvedValue({ count: 1 })
+      prisma.user.update.mockResolvedValue({})
+      auditLog.log.mockResolvedValue({})
+
+      await service.approveIdentity('iv1', 'admin1')
+      // 用户 payPassword 与 realNameStatus 同时被写入
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'u1' },
+          data: {
+            realNameStatus: 'VERIFIED',
+            payPassword: 'bcrypt$hash$xxx',
+          },
+        }),
+      )
+    })
   })
 
   describe('rejectIdentity 审核实名拒绝', () => {
@@ -196,11 +222,15 @@ describe('AdminService', () => {
 
       const result = await service.rejectIdentity('iv1', '证件不清晰', 'admin1')
       expect(result.status).toBe('REJECTED')
-      // H3: 实名记录通过 updateMany + status:PENDING 原子守卫置 REJECTED
+      // H3: 实名记录通过 updateMany + status:PENDING 原子守卫置 REJECTED，
+      // 同时清空 pendingPayPasswordHash：拒绝后不应保留未生效的密码哈希
       expect(prisma.identityVerification.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'iv1', status: 'PENDING' },
-          data: { status: 'REJECTED' },
+          data: {
+            status: 'REJECTED',
+            pendingPayPasswordHash: null,
+          },
         }),
       )
       expect(prisma.user.update).toHaveBeenCalledWith(

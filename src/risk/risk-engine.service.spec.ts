@@ -213,8 +213,10 @@ describe('RiskEngineService', () => {
     it('FREQUENT_TRANSACTION(IP高频): ip_frequency 规则 BLOCK 并生成 FREQUENT_TRANSACTION 事件', async () => {
       setupPassingMocks()
       redis.isEnabled.mockReturnValue(true)
+      // 分桶 key：risk:ipfreq:{ip}:{windowSeconds}:{bucket}
+      // bucket 动态变化，用 startsWith 匹配 windowSeconds=60 的 IP 频率计数
       redis.get.mockImplementation((key: string) => {
-        if (key === 'risk:ipfreq:1.2.3.4') return Promise.resolve(String(IP_FREQ_WINDOW_MAX))
+        if (key.startsWith('risk:ipfreq:1.2.3.4:60:')) return Promise.resolve(String(IP_FREQ_WINDOW_MAX))
         if (key.startsWith('risk:freq:')) return Promise.resolve('0')
         return Promise.resolve(null)
       })
@@ -308,7 +310,9 @@ describe('RiskEngineService', () => {
   })
 
   describe('recordTransaction 频率记录', () => {
-    it('Redis 可用时 incr 用户频率与 IP 频率计数(TTL=300)', async () => {
+    it('Redis 可用时 incr 用户频率与 IP 频率计数(TTL=windowSeconds*2)', async () => {
+      // recordTransaction 调用 loadRules()，需 mock systemConfig.findMany 返回空数组（使用默认规则）
+      prisma.systemConfig.findMany.mockResolvedValue([])
       redis.isEnabled.mockReturnValue(true)
       redis.incr.mockResolvedValue(1)
 
@@ -319,8 +323,16 @@ describe('RiskEngineService', () => {
         ip: '1.2.3.4',
       })
 
-      expect(redis.incr).toHaveBeenCalledWith('risk:freq:u1:TRANSFER', 300)
-      expect(redis.incr).toHaveBeenCalledWith('risk:ipfreq:1.2.3.4', 300)
+      // 分桶 key 格式：risk:freq:{userId}:{type}:{windowSeconds}:{bucket}
+      // 默认 frequency 与 ip_frequency 规则 windowSeconds=60，TTL=60*2=120
+      expect(redis.incr).toHaveBeenCalledWith(
+        expect.stringMatching(/^risk:freq:u1:TRANSFER:60:\d+$/),
+        120,
+      )
+      expect(redis.incr).toHaveBeenCalledWith(
+        expect.stringMatching(/^risk:ipfreq:1.2.3.4:60:\d+$/),
+        120,
+      )
     })
 
     it('Redis 不可用时不变更计数', async () => {

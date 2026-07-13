@@ -341,7 +341,9 @@ export class AlipayChannel implements PaymentChannel {
       }
 
       return {
-        channelRefundNo: (responseData.trade_no as string) || params.refundNo,
+        // channelRefundNo 编码 trade_no 与 out_request_no，供 queryRefund 调用
+        // alipay.trade.fastpay.refund.query 接口（要求 out_request_no + trade_no/out_trade_no）
+        channelRefundNo: `${responseData.trade_no}:${params.refundNo}`,
         status: 'PENDING',
         message: '退款受理中',
       }
@@ -353,6 +355,9 @@ export class AlipayChannel implements PaymentChannel {
 
   /**
    * 查询退款状态
+   *
+   * 调用 alipay.trade.fastpay.refund.query 接口，按 out_request_no 精确查询单笔退款状态。
+   * channelRefundNo 格式为 `${trade_no}:${out_request_no}`，由 refund() 方法生成。
    */
   async queryRefund(
     channelRefundNo: string,
@@ -366,9 +371,24 @@ export class AlipayChannel implements PaymentChannel {
       throw new Error('支付宝配置不完整')
     }
 
-    // 支付宝无独立退款查询接口，通过交易查询获取退款信息
-    const bizContent = JSON.stringify({ trade_no: channelRefundNo })
-    const commonParams = this.buildCommonParams(appId, 'alipay.trade.query')
+    // 解析 refund() 编码的 trade_no 与 out_request_no
+    const sepIdx = channelRefundNo.lastIndexOf(':')
+    if (sepIdx <= 0 || sepIdx === channelRefundNo.length - 1) {
+      return {
+        channelRefundNo,
+        status: 'FAILED',
+        message: 'channelRefundNo 格式非法，无法查询',
+      }
+    }
+    const tradeNo = channelRefundNo.slice(0, sepIdx)
+    const outRequestNo = channelRefundNo.slice(sepIdx + 1)
+
+    // 支付宝退款查询接口：要求 out_request_no + (out_trade_no 或 trade_no)
+    const bizContent = JSON.stringify({
+      trade_no: tradeNo,
+      out_request_no: outRequestNo,
+    })
+    const commonParams = this.buildCommonParams(appId, 'alipay.trade.fastpay.refund.query')
     const allParams = { ...commonParams, biz_content: bizContent }
     const sign = this.signRsa2(allParams, privateKey)
 
@@ -382,7 +402,7 @@ export class AlipayChannel implements PaymentChannel {
       })
 
       const result = await response.json() as Record<string, unknown>
-      const responseKey = 'alipay_trade_query_response'
+      const responseKey = 'alipay_trade_fastpay_refund_query_response'
       const responseData = result[responseKey] as Record<string, unknown> | undefined
 
       if (responseData?.code !== '10000') {
@@ -393,10 +413,8 @@ export class AlipayChannel implements PaymentChannel {
         }
       }
 
-      const totalAmount = parseFloat(responseData.total_amount as string || '0')
-      const refundAmount = parseFloat(responseData.buyer_pay_amount as string || '0')
-
-      if (refundAmount < totalAmount) {
+      // refund_status = 'REFUND_SUCCESS' 表示该笔退款成功
+      if (responseData.refund_status === 'REFUND_SUCCESS') {
         return {
           channelRefundNo,
           status: 'SUCCESS',
@@ -554,18 +572,29 @@ export class AlipayChannel implements PaymentChannel {
   parsePayoutCallback(
     rawBody: string,
     headers: Record<string, string>,
-    _channelConfig: ChannelConfig,
+    channelConfig: ChannelConfig,
   ): {
     channelOrderNo: string
     orderNo: string
     status: 'SUCCESS' | 'FAILED'
     signature: string
   } {
+    const alipayPublicKey = channelConfig.alipayPublicKey as string
+    if (!alipayPublicKey) {
+      throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '支付宝公钥未配置'))
+    }
+
     const params: Record<string, string> = {}
     const searchParams = new URLSearchParams(rawBody)
     searchParams.forEach((value, key) => {
       params[key] = value
     })
+
+    // 必须验签：否则攻击者可伪造 payout 成功回调，触发提现订单误标 SUCCESS
+    // 导致资金已扣但实际未到账的严重资金事故
+    if (!this.verifyNotify(params, alipayPublicKey)) {
+      throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '支付宝代付回调签名验证失败'))
+    }
 
     return {
       channelOrderNo: params.out_biz_no || '',

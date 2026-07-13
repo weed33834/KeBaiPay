@@ -640,10 +640,22 @@ export class AdminService {
         throw new BadRequestException(kbError(KBErrorCodes.IDENTITY_NOT_PENDING))
       }
 
-      await tx.user.update({
-        where: { id: identity.userId },
-        data: { realNameStatus: RealNameStatus.VERIFIED },
-      })
+      // 审核通过：把暂存的支付密码哈希写入 user.payPassword，用户自此可使用支付密码
+      // 若 identityVerification.pendingPayPasswordHash 为 null（历史数据兼容），不覆盖已有 payPassword
+      if (identity.pendingPayPasswordHash) {
+        await tx.user.update({
+          where: { id: identity.userId },
+          data: {
+            realNameStatus: RealNameStatus.VERIFIED,
+            payPassword: identity.pendingPayPasswordHash,
+          },
+        })
+      } else {
+        await tx.user.update({
+          where: { id: identity.userId },
+          data: { realNameStatus: RealNameStatus.VERIFIED },
+        })
+      }
 
       // 敏感操作写入防篡改审计日志
       await this.auditLog.log(
@@ -672,9 +684,13 @@ export class AdminService {
 
     return this.prisma.$transaction(async (tx) => {
       // H3: 使用 updateMany + status:PENDING 原子守卫，防止 findUnique 检查与更新之间状态被并发改变（TOCTOU）
+      // 同时清空 pendingPayPasswordHash：拒绝后不应保留未生效的密码哈希
       const lockResult = await tx.identityVerification.updateMany({
         where: { id, status: RealNameStatus.PENDING },
-        data: { status: RealNameStatus.REJECTED },
+        data: {
+          status: RealNameStatus.REJECTED,
+          pendingPayPasswordHash: null,
+        },
       })
       if (lockResult.count === 0) {
         throw new BadRequestException(kbError(KBErrorCodes.IDENTITY_NOT_PENDING))

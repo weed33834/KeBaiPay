@@ -162,18 +162,21 @@ describe('UsersService', () => {
           realName: dto.realName,
           idCard: `enc_${dto.idCard}`,
           status: RealNameStatus.PENDING,
+          // 支付密码哈希暂存到 identityVerification，审核通过后才写入 user.payPassword
+          pendingPayPasswordHash: 'hashed_123456',
         },
         update: {
           realName: dto.realName,
           idCard: `enc_${dto.idCard}`,
           status: RealNameStatus.PENDING,
+          pendingPayPasswordHash: 'hashed_123456',
         },
       })
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: 'u1' },
         data: {
+          // 审核通过前 user.payPassword 不写入，避免 reject 后用户仍能用支付密码
           realNameStatus: RealNameStatus.PENDING,
-          payPassword: 'hashed_123456',
         },
       })
       expect(result.status).toBe(RealNameStatus.PENDING)

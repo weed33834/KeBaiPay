@@ -722,24 +722,57 @@ export class WechatPayChannel implements PaymentChannel {
   parsePayoutCallback(
     rawBody: string,
     headers: Record<string, string>,
-    _channelConfig: ChannelConfig,
+    channelConfig: ChannelConfig,
   ): {
     channelOrderNo: string
     orderNo: string
     status: 'SUCCESS' | 'FAILED'
     signature: string
   } {
-    let body: { batch_id: string; out_batch_no: string; batch_status: string }
+    const apiV3Key = channelConfig.apiV3Key as string
+    if (!apiV3Key) {
+      throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '微信支付 APIv3 密钥未配置'))
+    }
+
+    // 微信代付（商家转账到零钱）回调也是加密的，必须先解密 resource 才能拿到明文状态。
+    // 直接 JSON.parse(rawBody) 会拿到 ciphertext，无法获取 batch_status 等业务字段，
+    // 也不能直接信任 envelope 中的明文（攻击者可伪造未加密回调触发提现订单误标 SUCCESS）
+    let body: {
+      resource: { ciphertext: string; nonce: string; associated_data: string }
+    }
     try {
       body = JSON.parse(rawBody)
     } catch {
-      throw new Error('微信支付代付回调 body 非 JSON')
+      throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '微信代付回调 body 非 JSON'))
+    }
+
+    let decrypted: string
+    try {
+      decrypted = this.decryptGcm(
+        body.resource.ciphertext,
+        body.resource.nonce,
+        body.resource.associated_data,
+        apiV3Key,
+      )
+    } catch {
+      throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '微信代付回调解密失败'))
+    }
+
+    let resource: {
+      batch_id: string
+      out_batch_no: string
+      batch_status: string
+    }
+    try {
+      resource = JSON.parse(decrypted)
+    } catch {
+      throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '微信代付回调解密数据格式错误'))
     }
 
     return {
-      channelOrderNo: body.batch_id || '',
-      orderNo: body.out_batch_no || '',
-      status: body.batch_status === 'FINISHED' ? 'SUCCESS' : 'FAILED',
+      channelOrderNo: resource.batch_id || '',
+      orderNo: resource.out_batch_no || '',
+      status: resource.batch_status === 'FINISHED' ? 'SUCCESS' : 'FAILED',
       signature: headers['wechatpay-signature'] || '',
     }
   }
