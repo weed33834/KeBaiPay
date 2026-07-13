@@ -8,6 +8,7 @@ import {
 } from '../common/enums'
 import { PrismaService } from '../prisma/prisma.service'
 import { fenToYuan } from '../common/helpers'
+import { escapeCsvField } from '../common/csv'
 import { SettlementService } from '../notifications/settlement.service'
 
 @Injectable()
@@ -387,7 +388,7 @@ export class FinanceService {
         item.totalFeeYuan,
         item.transactionCount,
       ]
-        .map((f) => this.escapeCsvField(f))
+        .map((f) => escapeCsvField(f))
         .join(','),
     )
     return '\uFEFF' + [header, ...rows].join('\n')
@@ -410,7 +411,7 @@ export class FinanceService {
         item.settledAmountYuan,
         item.orderCount,
       ]
-        .map((f) => this.escapeCsvField(f))
+        .map((f) => escapeCsvField(f))
         .join(','),
     )
     return '\uFEFF' + [header, ...rows].join('\n')
@@ -429,7 +430,7 @@ export class FinanceService {
         item.withdrawalFeeYuan,
         item.totalFeeYuan,
       ]
-        .map((f) => this.escapeCsvField(f))
+        .map((f) => escapeCsvField(f))
         .join(','),
     )
     return '\uFEFF' + [header, ...rows].join('\n')
@@ -451,7 +452,7 @@ export class FinanceService {
         item.totalFeeYuan,
         item.transactionCount,
       ]
-        .map((f) => this.escapeCsvField(f))
+        .map((f) => escapeCsvField(f))
         .join(','),
     )
     return '\uFEFF' + [header, ...rows].join('\n')
@@ -470,14 +471,6 @@ export class FinanceService {
     start.setUTCHours(0, 0, 0, 0)
     const end = new Date(`${today.toISOString().slice(0, 10)}T23:59:59.999Z`)
     return { start, end }
-  }
-
-  private escapeCsvField(value: unknown): string {
-    const str = String(value)
-    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-      return `"${str.replace(/"/g, '""')}"`
-    }
-    return str
   }
 
   private getRange(startDate?: string, endDate?: string) {

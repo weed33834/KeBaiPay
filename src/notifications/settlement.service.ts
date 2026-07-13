@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { NotificationsService } from './notifications.service'
+import { formatDate, getPreviousDate, getDateRange } from '../common/date-helpers'
 
 export interface SettlementResult {
   merchantId: string
@@ -32,20 +33,17 @@ export class SettlementService {
    */
   async runDailySettlement(): Promise<SettlementResult[]> {
     const results: SettlementResult[] = []
-    const yesterday = new Date()
-    yesterday.setDate(yesterday.getDate() - 1)
-    yesterday.setHours(0, 0, 0, 0)
+    // 统一使用 UTC 日界，避免 setHours(0,0,0,0) 的本地时区漂移导致漏结/多结
+    const yesterdayStr = getPreviousDate(formatDate(new Date()))
+    const { start: yesterday, end: yesterdayEnd } = getDateRange(yesterdayStr, yesterdayStr)
 
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-
-    this.logger.log(`开始 T+1 结算，结算日期: ${yesterday.toISOString().split('T')[0]}`)
+    this.logger.log(`开始 T+1 结算，结算日期: ${yesterdayStr}`)
 
     // 查找昨天已支付但未结算的订单
     const unpaidSettlements = await this.prisma.paymentOrder.findMany({
       where: {
         status: 'PAID',
-        paidAt: { gte: yesterday, lt: today },
+        paidAt: { gte: yesterday, lte: yesterdayEnd },
         settledAt: null,
       },
       include: { merchant: true },

@@ -12,6 +12,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service'
 import { FinanceService } from './finance.service'
 import { fenToYuan } from '../common/helpers'
+import { escapeCsvField } from '../common/csv'
 
 // 对账摘要结构，便于持久化与接口返回
 export interface ReconciliationSummary {
@@ -372,7 +373,7 @@ export class ReconciliationService {
     const header = '日期,状态,差异'
     const rows = data.map((item) =>
       [item.date, item.status, this.flattenDifferences(item.differences)]
-        .map((f) => this.escapeCsvField(f))
+        .map((f) => escapeCsvField(f))
         .join(','),
     )
     return '\uFEFF' + [header, ...rows].join('\n')
@@ -389,14 +390,6 @@ export class ReconciliationService {
     } catch {
       return differences
     }
-  }
-
-  private escapeCsvField(value: unknown): string {
-    const str = String(value)
-    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-      return `"${str.replace(/"/g, '""')}"`
-    }
-    return str
   }
 
   private getDateRange(date: string) {

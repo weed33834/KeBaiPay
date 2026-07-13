@@ -28,6 +28,7 @@ import { RiskEngineService } from '../risk/risk-engine.service'
 import { JournalService } from '../finance/journal.service'
 import { RedisService } from '../redis/redis.service'
 import { fenToYuan, generateOrderNo, generatePaymentNo, isCallbackUrlSafe, yuanToFen } from '../common/helpers'
+import { escapeCsvField } from '../common/csv'
 import { KBErrorCodes, kbError } from '../common/error-codes'
 import {
   CALLBACK_TIMEOUT_MS,
@@ -725,7 +726,7 @@ export class CashierService {
         this.formatDateTime(o.createdAt),
         o.paidAt ? this.formatDateTime(o.paidAt) : '',
       ]
-        .map((v) => this.escapeCsvField(String(v)))
+        .map((v) => escapeCsvField(String(v)))
         .join(',')
     })
 
@@ -846,14 +847,6 @@ export class CashierService {
       amountYuan: fenToYuan(order.amount),
       feeYuan: fenToYuan(order.fee),
     }
-  }
-
-  // CSV 字段转义：含逗号、引号或换行时用双引号包裹，内部引号转义为两个引号
-  private escapeCsvField(value: string): string {
-    if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-      return `"${value.replace(/"/g, '""')}"`
-    }
-    return value
   }
 
   // 格式化为 YYYY-MM-DD HH:mm:ss
