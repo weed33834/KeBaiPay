@@ -5,8 +5,9 @@ import {
   Logger,
 } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
-import { TransactionStatus } from '../common/enums'
+import { TransactionStatus, PaymentOrderStatus } from '../common/enums'
 import { RedisService } from '../redis/redis.service'
+import { RiskEngineService } from '../risk/risk-engine.service'
 import { PaymentChannelRegistry } from './payment-channel.registry'
 import { RefundRequest, RefundResponse, ChannelConfig } from './payment-channel.interface'
 import { generateOrderNo } from '../common/helpers'
@@ -30,6 +31,7 @@ export class RefundService {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly channelRegistry: PaymentChannelRegistry,
+    private readonly riskEngine: RiskEngineService,
   ) {}
 
   /**
@@ -98,7 +100,7 @@ export class RefundService {
 
       const refundNo = generateOrderNo('RF')
 
-      // 创建退款订单
+      // 创建退款订单（PENDING → PROCESSING → SUCCESS/FAILED）
       const refundOrder = await this.prisma.transactionOrder.create({
         data: {
           orderNo: refundNo,
@@ -112,6 +114,12 @@ export class RefundService {
           idempotencyKey,
           remark: reason || '用户退款',
         },
+      })
+
+      // 调用渠道退款前先置 PROCESSING，防止 queryRefund 在渠道调用期间重复扣款
+      await this.prisma.transactionOrder.update({
+        where: { id: refundOrder.id },
+        data: { status: TransactionStatus.PROCESSING },
       })
 
       // 调用渠道退款
@@ -191,6 +199,15 @@ export class RefundService {
       return {
         refundNo,
         status: refundOrder.status,
+      }
+    }
+
+    // PENDING 表示渠道退款尚未发起，不应查询渠道；只有 PROCESSING 才需要主动查询
+    if (refundOrder.status === TransactionStatus.PENDING) {
+      return {
+        refundNo,
+        status: refundOrder.status,
+        message: '退款处理中',
       }
     }
 
@@ -314,6 +331,28 @@ export class RefundService {
                 },
               })
             }
+
+            // 同步更新对应的 paymentOrder.refundAmount，保证 OpenAPI 查订单能看到退款金额
+            if (originalOrder.relatedOrderNo) {
+              const paymentOrder = await tx.paymentOrder.findUnique({
+                where: { orderNo: originalOrder.relatedOrderNo },
+                select: { id: true, amount: true, refundAmount: true },
+              })
+              if (paymentOrder) {
+                const newRefundAmount = (paymentOrder.refundAmount || 0) + refundOrder.amount
+                await tx.paymentOrder.update({
+                  where: { id: paymentOrder.id },
+                  data: {
+                    refundAmount: newRefundAmount,
+                    refundedAt: new Date(),
+                    // 全额退款时标记订单为 REFUNDED 状态
+                    status: newRefundAmount >= paymentOrder.amount
+                      ? PaymentOrderStatus.REFUNDED
+                      : PaymentOrderStatus.PAID,
+                  },
+                })
+              }
+            }
           }
         }
 
@@ -324,6 +363,7 @@ export class RefundService {
 
   /**
    * 退款成功后处理资金退回
+   * 用 updateMany 乐观锁防止重复扣款（仅当 status=PROCESSING 时才扣）
    */
   private async processRefundSuccess(
     refundNo: string,
@@ -332,6 +372,20 @@ export class RefundService {
     userId: string,
   ): Promise<void> {
     await this.redis.withLock(`refund:process:${refundNo}`, REDIS_LOCK_TTL_SECONDS, async () => {
+      // 幂等检查：只有 PROCESSING 状态才处理，已成功的跳过
+      const refundOrder = await this.prisma.transactionOrder.findUnique({
+        where: { orderNo: refundNo },
+        select: { id: true, status: true, relatedOrderNo: true },
+      })
+      if (!refundOrder) {
+        this.logger.error(`退款成功但退款订单不存在: ${refundNo}`)
+        return
+      }
+      if (refundOrder.status === TransactionStatus.SUCCESS) {
+        this.logger.warn(`退款 ${refundNo} 已处理过资金退回，跳过重复扣款`)
+        return
+      }
+
       const account = await this.prisma.account.findUnique({
         where: { userId },
       })
@@ -341,6 +395,16 @@ export class RefundService {
       }
 
       await this.prisma.$transaction(async (tx) => {
+        // 乐观锁：仅当 status=PROCESSING 时更新为 SUCCESS，防止并发重复扣款
+        const updated = await tx.transactionOrder.updateMany({
+          where: { id: refundOrder.id, status: TransactionStatus.PROCESSING },
+          data: { status: TransactionStatus.SUCCESS, completedAt: new Date() },
+        })
+        if (updated.count === 0) {
+          // 状态已变更（可能已被其他流程处理），跳过
+          return
+        }
+
         const updatedAccount = await tx.account.update({
           where: { id: account.id },
           data: {
@@ -361,6 +425,41 @@ export class RefundService {
             remark: `退款 ${refundNo}（原订单 ${originalOrderNo}）`,
           },
         })
+
+        // 同步更新对应的 paymentOrder.refundAmount（原支付单 -> 商户订单）
+        if (refundOrder.relatedOrderNo) {
+          const originalTxOrder = await tx.transactionOrder.findUnique({
+            where: { orderNo: refundOrder.relatedOrderNo },
+            select: { relatedOrderNo: true },
+          })
+          if (originalTxOrder?.relatedOrderNo) {
+            const paymentOrder = await tx.paymentOrder.findUnique({
+              where: { orderNo: originalTxOrder.relatedOrderNo },
+              select: { id: true, amount: true, refundAmount: true },
+            })
+            if (paymentOrder) {
+              const newRefundAmount = (paymentOrder.refundAmount || 0) + amount
+              await tx.paymentOrder.update({
+                where: { id: paymentOrder.id },
+                data: {
+                  refundAmount: newRefundAmount,
+                  refundedAt: new Date(),
+                  status: newRefundAmount >= paymentOrder.amount
+                    ? PaymentOrderStatus.REFUNDED
+                    : PaymentOrderStatus.PAID,
+                },
+              })
+            }
+          }
+        }
+      })
+      // 退款成功后记录风控频率（不阻塞业务）
+      this.riskEngine.recordTransaction({
+        userId,
+        type: 'REFUND',
+        amount,
+      }).catch((err) => {
+        this.logger.warn(`recordTransaction(REFUND) 失败: ${err?.message || err}`)
       })
     })
   }

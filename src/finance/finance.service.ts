@@ -294,37 +294,24 @@ export class FinanceService {
   async getOverview(query: { startDate?: string; endDate?: string }) {
     const { start, end } = this.getOverviewRange(query.startDate, query.endDate)
 
+    // 单次 groupBy 按 type 聚合，替代原 4 次独立 aggregate（turnover/income/expense/count）
+    const incomeTypeSet = new Set(this.incomeTypes())
+    const expenseTypeSet = new Set(this.expenseTypes())
+
     const [
-      turnoverAgg,
-      incomeAgg,
-      expenseAgg,
+      txGroups,
       paymentFeeAgg,
       withdrawalFeeAgg,
-      transactionCount,
       accountsAgg,
     ] = await Promise.all([
-      this.prisma.transactionOrder.aggregate({
+      this.prisma.transactionOrder.groupBy({
+        by: ['type'],
         where: {
           status: TransactionStatus.SUCCESS,
           completedAt: { gte: start, lte: end },
         },
         _sum: { amount: true },
-      }),
-      this.prisma.transactionOrder.aggregate({
-        where: {
-          status: TransactionStatus.SUCCESS,
-          completedAt: { gte: start, lte: end },
-          type: { in: this.incomeTypes() },
-        },
-        _sum: { amount: true },
-      }),
-      this.prisma.transactionOrder.aggregate({
-        where: {
-          status: TransactionStatus.SUCCESS,
-          completedAt: { gte: start, lte: end },
-          type: { in: this.expenseTypes() },
-        },
-        _sum: { amount: true },
+        _count: { id: true },
       }),
       this.prisma.paymentOrder.aggregate({
         where: {
@@ -340,18 +327,24 @@ export class FinanceService {
         },
         _sum: { fee: true },
       }),
-      this.prisma.transactionOrder.count({
-        where: {
-          status: TransactionStatus.SUCCESS,
-          completedAt: { gte: start, lte: end },
-        },
-      }),
       this.prisma.account.aggregate({ _sum: { totalBalance: true } }),
     ])
 
-    const totalTurnover = turnoverAgg._sum.amount || 0
-    const totalIncome = incomeAgg._sum.amount || 0
-    const totalExpense = expenseAgg._sum.amount || 0
+    let totalTurnover = 0
+    let totalIncome = 0
+    let totalExpense = 0
+    let transactionCount = 0
+    for (const g of txGroups) {
+      const amount = g._sum.amount || 0
+      totalTurnover += amount
+      transactionCount += g._count.id
+      if (incomeTypeSet.has(g.type as TransactionType)) {
+        totalIncome += amount
+      } else if (expenseTypeSet.has(g.type as TransactionType)) {
+        totalExpense += amount
+      }
+    }
+
     const totalFee =
       (paymentFeeAgg._sum.fee || 0) + (withdrawalFeeAgg._sum.fee || 0)
     const netIncome = totalFee

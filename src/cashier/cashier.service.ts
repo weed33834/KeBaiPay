@@ -39,6 +39,8 @@ import {
   MAX_CALLBACK_RETRIES,
   MAX_EXPORT_ROWS,
   MAX_PAGE_SIZE,
+  NOTIFY_RETRY_BACKOFF_MS,
+  NOTIFY_RETRY_BATCH_SIZE,
   ORDER_EXPIRY_MS,
   RATE_DENOMINATOR,
   REDIS_LOCK_TTL_SECONDS,
@@ -217,7 +219,7 @@ export class CashierService {
 
     const paidOrder = await this.redis.withLock(
       `cashier:pay:${dto.orderNo}:${payerId}`,
-      10,
+      REDIS_LOCK_TTL_SECONDS,
       async () => this.prisma.$transaction(async (tx) => {
       const payerAccount = await tx.account.findUnique({
         where: { userId: payerId },
@@ -397,10 +399,19 @@ export class CashierService {
       })
     }
 
+    // 交易成功后记录风控频率（失败不阻塞业务，仅告警）
+    this.riskEngine.recordTransaction({
+      userId: payerId,
+      type: 'PAYMENT',
+      amount,
+    }).catch((err) => {
+      this.logger.warn(`recordTransaction(PAYMENT) 失败: ${err?.message || err}`)
+    })
+
     return this.formatOrder(paidOrder)
   }
 
-  // 批量关闭过期未支付订单
+  // 批量关闭过期未支付订单，并补偿已付款但通知失败的订单
   async closeExpiredOrders() {
     const now = new Date()
     const result = await this.prisma.paymentOrder.updateMany({
@@ -413,6 +424,49 @@ export class CashierService {
       },
     })
     this.logger.log(`已关闭 ${result.count} 条过期订单`)
+
+    // 补偿通知：已付款但 notifyStatus 仍为 PENDING/FAILED 且超过退避时长的订单，
+    // 触发一次重试，避免商户因首次通知失败而漏发货
+    await this.retryStaleNotifications(now)
+  }
+
+  // 补偿通知：已付款但通知未成功的订单
+  private async retryStaleNotifications(now: Date) {
+    const cutoff = new Date(now.getTime() - NOTIFY_RETRY_BACKOFF_MS)
+    const staleOrders = await this.prisma.paymentOrder.findMany({
+      where: {
+        status: PaymentOrderStatus.PAID,
+        paidAt: { lt: cutoff },
+        notifyStatus: { in: [NotifyStatus.PENDING, NotifyStatus.FAILED] },
+        // 留存 callbackUrl 才有重试意义
+        callbackUrl: { not: null },
+      },
+      select: {
+        id: true,
+        orderNo: true,
+        merchantOrderNo: true,
+        amount: true,
+        paidAt: true,
+        callbackUrl: true,
+        appId: true,
+      },
+      take: NOTIFY_RETRY_BATCH_SIZE,
+      orderBy: { paidAt: 'asc' },
+    })
+
+    if (staleOrders.length === 0) return
+
+    this.logger.warn(`发现 ${staleOrders.length} 条已付款但通知未完成的订单，开始补偿重试`)
+
+    // 串行重试，避免一次性打爆商户端；notifyMerchant 内部已有锁 + 幂等保护。
+    // status 已被 where 限定为 PAID，显式传入以满足 notifyMerchant 类型签名
+    for (const order of staleOrders) {
+      try {
+        await this.notifyMerchant({ ...order, status: PaymentOrderStatus.PAID })
+      } catch (err) {
+        this.logger.error(`补偿通知订单 ${order.orderNo} 失败: ${err instanceof Error ? err.message : String(err)}`)
+      }
+    }
   }
 
   // 商户回调通知：POST callbackUrl，带 X-KB-Signature 签名头，最多重试 5 次

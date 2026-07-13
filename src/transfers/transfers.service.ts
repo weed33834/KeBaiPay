@@ -3,6 +3,7 @@ import {
   BadRequestException,
   NotFoundException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import {
@@ -27,6 +28,8 @@ import { DEFAULT_TRANSFER_DAILY_LIMIT_CENTS, LARGE_TRANSFER_THRESHOLD_CENTS, RED
 
 @Injectable()
 export class TransfersService {
+  private readonly logger = new Logger(TransfersService.name)
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
@@ -254,6 +257,15 @@ export class TransfersService {
             },
           })
         }
+
+        // 转账成功后记录风控频率（不阻塞业务）
+        this.riskEngine.recordTransaction({
+          userId: fromUserId,
+          type: 'TRANSFER',
+          amount,
+        }).catch((err) => {
+          this.logger.warn(`recordTransaction(TRANSFER) 失败: ${err?.message || err}`)
+        })
 
         return order
       })

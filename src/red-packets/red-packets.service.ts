@@ -3,6 +3,7 @@ import {
   BadRequestException,
   NotFoundException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { Prisma } from '@prisma/client'
@@ -22,10 +23,12 @@ import { RiskEngineService } from '../risk/risk-engine.service'
 import { RedisService } from '../redis/redis.service'
 import { fenToYuan, generateOrderNo, yuanToFen } from '../common/helpers'
 import { KBErrorCodes, kbError } from '../common/error-codes'
-import { RED_PACKET_EXPIRY_MS } from '../common/constants'
+import { DEFAULT_RED_PACKET_DAILY_LIMIT_CENTS, RED_PACKET_EXPIRY_MS, REDIS_LOCK_TTL_SECONDS } from '../common/constants'
 
 @Injectable()
 export class RedPacketsService {
+  private readonly logger = new Logger(RedPacketsService.name)
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
@@ -35,7 +38,7 @@ export class RedPacketsService {
 
   async create(
     senderId: string,
-    dto: { amount: number; remark?: string; payPassword: string },
+    dto: { amount: number; remark?: string; payPassword: string; idempotencyKey?: string },
   )
   {
     if (dto.amount <= 0) {
@@ -77,8 +80,39 @@ export class RedPacketsService {
 
     return this.redis.withLock(
       `redpacket:create:${senderId}`,
-      10,
+      REDIS_LOCK_TTL_SECONDS,
       async () => this.prisma.$transaction(async (tx) => {
+      // 幂等键预检查：同一 idempotencyKey 命中已存在红包时直接返回，避免网络重试创建第二个红包
+      if (dto.idempotencyKey) {
+        const existing = await tx.redPacket.findUnique({
+          where: { idempotencyKey: dto.idempotencyKey },
+        })
+        if (existing) {
+          // 校验归属，防止不同用户使用相同 idempotencyKey 获取他人红包
+          if (existing.senderId !== senderId) {
+            throw new BadRequestException(kbError(KBErrorCodes.IDEMPOTENCY_KEY_CONFLICT))
+          }
+          return existing
+        }
+      }
+
+      // 单日发红包限额：从 systemConfig 读取（单位元），默认 DEFAULT_RED_PACKET_DAILY_LIMIT_CENTS
+      const dateStr = new Date().toISOString().slice(0, 10)
+      const limitConfig = await tx.systemConfig.findUnique({
+        where: { key: 'red_packet_daily_limit' },
+      })
+      const redPacketLimit = limitConfig
+        ? Math.round(Number(limitConfig.value) * 100)
+        : DEFAULT_RED_PACKET_DAILY_LIMIT_CENTS
+      await this.usersService.checkAndIncrementDailyLimit(
+        tx,
+        senderId,
+        'RED_PACKET',
+        dateStr,
+        amount,
+        redPacketLimit,
+      )
+
       const account = await tx.account.findUnique({ where: { userId: senderId } })
       if (!account) throw new NotFoundException(kbError(KBErrorCodes.ACCOUNT_NOT_FOUND))
       if (account.availableBalance < amount) {
@@ -96,6 +130,7 @@ export class RedPacketsService {
           status: RedPacketStatus.PENDING,
           remark: dto.remark,
           expiresAt,
+          idempotencyKey: dto.idempotencyKey,
         },
       })
 
@@ -136,7 +171,17 @@ export class RedPacketsService {
 
       return packet
       }),
-    )
+    ).then((packet) => {
+      // 发红包成功后记录风控频率（不阻塞业务）
+      this.riskEngine.recordTransaction({
+        userId: senderId,
+        type: 'RED_PACKET',
+        amount,
+      }).catch((err) => {
+        this.logger.warn(`recordTransaction(RED_PACKET create) 失败: ${err?.message || err}`)
+      })
+      return packet
+    })
   }
 
   async receive(receiverId: string, packetNo: string, idempotencyKey?: string) {
@@ -154,7 +199,7 @@ export class RedPacketsService {
 
     return this.redis.withLock(
       `redpacket:receive:${packetNo}`,
-      10,
+      REDIS_LOCK_TTL_SECONDS,
       async () => this.prisma.$transaction(async (tx) => {
       const packet = await tx.redPacket.findUnique({
         where: { packetNo },
@@ -308,7 +353,17 @@ export class RedPacketsService {
 
       return { ...packet, status: RedPacketStatus.RECEIVED, receivedAt: new Date() }
       }),
-    )
+    ).then((result) => {
+      // 领红包成功后记录风控频率（不阻塞业务）
+      this.riskEngine.recordTransaction({
+        userId: receiverId,
+        type: 'RED_PACKET',
+        amount: result.amount,
+      }).catch((err) => {
+        this.logger.warn(`recordTransaction(RED_PACKET receive) 失败: ${err?.message || err}`)
+      })
+      return result
+    })
   }
 
   async expireReturn(packetId: string) {

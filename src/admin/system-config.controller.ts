@@ -34,6 +34,7 @@ export class SystemConfigController {
   }
 
   @Get()
+  @RequirePermissions('risk:config')
   @ApiOperation({ summary: '获取所有系统配置' })
   @ApiResponse({ status: 200, description: '返回配置列表' })
   getAll() {
@@ -41,6 +42,7 @@ export class SystemConfigController {
   }
 
   @Get(':key')
+  @RequirePermissions('risk:config')
   @ApiOperation({ summary: '获取指定配置项' })
   @ApiResponse({ status: 200, description: '返回配置值' })
   getByKey(@Param('key') key: string) {

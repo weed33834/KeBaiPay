@@ -52,6 +52,7 @@ export class ChannelConfigController {
   ) {}
 
   @Get()
+  @RequirePermissions('admin:view')
   @ApiOperation({ summary: '支付渠道列表', description: '查询所有支付渠道配置（敏感字段已脱敏）' })
   @ApiResponse({ status: 200, description: '返回渠道列表' })
   async listChannels() {
@@ -191,6 +192,7 @@ export class ChannelConfigController {
   }
 
   @Post(':code/test')
+  @RequirePermissions('risk:config')
   @ApiOperation({ summary: '测试支付渠道', description: '验证渠道是否可用' })
   @ApiResponse({ status: 200, description: '渠道可用' })
   async testChannel(

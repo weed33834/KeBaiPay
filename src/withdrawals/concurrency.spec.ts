@@ -10,7 +10,7 @@ import { MockChannel } from '../payment-channels/channels/mock.channel'
 import { JournalService } from '../finance/journal.service'
 import { CryptoService } from '../crypto/crypto.service'
 
-type UsersServiceMock = Record<'findById' | 'verifyPayPassword', jest.Mock>
+type UsersServiceMock = Record<'findById' | 'verifyPayPassword' | 'checkAndIncrementDailyLimit', jest.Mock>
 type RedisMock = Record<'isEnabled' | 'withLock', jest.Mock>
 type ChannelRegistryMock = Record<'getChannel' | 'getEnabledConfig' | 'getChannelByType', jest.Mock>
 type RiskEngineMock = Record<'check' | 'recordTransaction', jest.Mock>
@@ -55,6 +55,7 @@ describe('WithdrawalsService 并发安全', () => {
     usersService = {
       findById: jest.fn(),
       verifyPayPassword: jest.fn().mockResolvedValue(true),
+      checkAndIncrementDailyLimit: jest.fn().mockResolvedValue(undefined),
     }
 
     // 串行化 withLock：同一 lockKey 的调用排队执行，模拟 Redis 分布式锁

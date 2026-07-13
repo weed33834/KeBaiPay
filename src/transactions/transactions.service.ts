@@ -3,6 +3,7 @@ import {
   BadRequestException,
   NotFoundException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { Prisma } from '@prisma/client'
@@ -25,6 +26,8 @@ import { REDIS_LOCK_TTL_SECONDS } from '../common/constants'
 
 @Injectable()
 export class TransactionsService {
+  private readonly logger = new Logger(TransactionsService.name)
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
@@ -260,7 +263,16 @@ export class TransactionsService {
           { journalId, accountCode: `USER:${order.toUserId}`, credit: order.amount, memo: `充值入账 ${order.orderNo}` },
         ])
 
-        return channel.buildRechargeCallbackSuccess()
+        const response = channel.buildRechargeCallbackSuccess()
+        // 充值入账成功后记录风控频率（不阻塞回调返回）
+        this.riskEngine.recordTransaction({
+          userId: order.toUserId!,
+          type: 'RECHARGE',
+          amount: order.amount,
+        }).catch((err) => {
+          this.logger.warn(`recordTransaction(RECHARGE) 失败: ${err?.message || err}`)
+        })
+        return response
       })
     })
   }

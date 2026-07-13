@@ -41,6 +41,8 @@ export const REDIS_LOCK_TTL_SECONDS = 30
 export const DEFAULT_TRANSFER_DAILY_LIMIT_CENTS = 50000 * 100 // 5 万元
 export const DEFAULT_PAYMENT_DAILY_LIMIT_CENTS = 5000000 // 5 万元
 export const DEFAULT_MERCHANT_DAILY_LIMIT_CENTS = 10000000 // 10 万元
+export const DEFAULT_WITHDRAW_DAILY_LIMIT_CENTS = 20000 * 100 // 2 万元
+export const DEFAULT_RED_PACKET_DAILY_LIMIT_CENTS = 5000 * 100 // 5 千元
 
 /** 大额交易告警阈值（单位：分） */
 export const LARGE_TRANSFER_THRESHOLD_CENTS = 50000 // 500 元
@@ -52,6 +54,10 @@ export const RED_PACKET_EXPIRY_MS = DAY_MS
 /** 商户回调通知 */
 export const MAX_CALLBACK_RETRIES = 5
 export const CALLBACK_TIMEOUT_MS = 10 * 1000
+// 已付款但通知失败的订单，距 paidAt 超过该时长的进入补偿重试队列
+export const NOTIFY_RETRY_BACKOFF_MS = 5 * 60 * 1000
+// 单次补偿任务最多处理的订单数，防止积压时一次性打爆下游
+export const NOTIFY_RETRY_BATCH_SIZE = 100
 
 /** 商户看板时间跨度 */
 export const DASHBOARD_WEEK_DAYS = 7

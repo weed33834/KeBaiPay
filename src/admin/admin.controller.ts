@@ -60,6 +60,7 @@ export class AdminController {
   }
 
   @Get('dashboard')
+  @RequirePermissions('admin:view')
   @ApiOperation({ summary: '管理后台数据概览' })
   @ApiResponse({ status: 200, description: '返回统计数据' })
   getDashboardStats() {
@@ -67,6 +68,7 @@ export class AdminController {
   }
 
   @Get('users')
+  @RequirePermissions('admin:view')
   @ApiOperation({ summary: '用户列表', description: '分页查询所有用户' })
   @ApiResponse({ status: 200, description: '返回用户列表' })
   listUsers(@Query() query: ListUsersQueryDto) {
@@ -74,6 +76,7 @@ export class AdminController {
   }
 
   @Get('users/:id')
+  @RequirePermissions('admin:view')
   @ApiOperation({ summary: '用户详情' })
   @ApiResponse({ status: 200, description: '返回用户详情' })
   getUserDetail(@Param('id') id: string) {
@@ -110,6 +113,7 @@ export class AdminController {
   }
 
   @Get('merchants')
+  @RequirePermissions('admin:view')
   @ApiOperation({ summary: '商户列表', description: '分页查询所有商户' })
   @ApiResponse({ status: 200, description: '返回商户列表' })
   listMerchants(@Query() query: ListMerchantsQueryDto) {
@@ -170,6 +174,7 @@ export class AdminController {
   }
 
   @Get('withdrawals')
+  @RequirePermissions('admin:view')
   @ApiOperation({ summary: '提现审核列表' })
   @ApiResponse({ status: 200, description: '返回提现订单列表' })
   listWithdrawals(@Query() query: ListWithdrawalsQueryDto) {
@@ -218,6 +223,7 @@ export class AdminController {
   }
 
   @Get('payment-orders')
+  @RequirePermissions('admin:view')
   @ApiOperation({ summary: '支付订单列表' })
   @ApiResponse({ status: 200, description: '返回支付订单列表' })
   listPaymentOrders(@Query() query: ListPaymentOrdersQueryDto) {
@@ -225,6 +231,7 @@ export class AdminController {
   }
 
   @Get('risk-events')
+  @RequirePermissions('admin:view')
   @ApiOperation({ summary: '风控事件列表' })
   @ApiResponse({ status: 200, description: '返回风控事件列表' })
   listRiskEvents(@Query() query: ListRiskEventsQueryDto) {
@@ -248,6 +255,7 @@ export class AdminController {
   }
 
   @Get('login-logs')
+  @RequirePermissions('admin:view')
   @ApiOperation({ summary: '登录日志' })
   @ApiResponse({ status: 200, description: '返回登录日志列表' })
   listLoginLogs(@Query() query: ListLoginLogsQueryDto) {
@@ -255,6 +263,7 @@ export class AdminController {
   }
 
   @Get('system-configs')
+  @RequirePermissions('risk:config')
   @ApiOperation({ summary: '获取系统配置' })
   @ApiResponse({ status: 200, description: '返回系统配置列表' })
   getSystemConfigs() {
@@ -279,6 +288,7 @@ export class AdminController {
   }
 
   @Get('risk-rules')
+  @RequirePermissions('risk:config')
   @ApiOperation({ summary: '获取风控规则' })
   @ApiResponse({ status: 200, description: '返回风控规则列表' })
   getRiskRules() {
@@ -304,6 +314,7 @@ export class AdminController {
   }
 
   @Get('identity/pending')
+  @RequirePermissions('admin:view')
   @ApiOperation({ summary: '待审核实名列表' })
   @ApiResponse({ status: 200, description: '返回待审核实名列表' })
   listPendingIdentities(@Query() query: ListPendingIdentitiesQueryDto) {
@@ -346,6 +357,7 @@ export class AdminController {
   }
 
   @Get('audit-logs')
+  @RequirePermissions('admin:view')
   @ApiOperation({ summary: '操作审计日志' })
   @ApiResponse({ status: 200, description: '返回审计日志列表' })
   listAuditLogs(@Query() query: ListAuditLogsQueryDto) {

@@ -10,7 +10,7 @@ import { MockChannel } from '../payment-channels/channels/mock.channel'
 import { JournalService } from '../finance/journal.service'
 import { CryptoService } from '../crypto/crypto.service'
 
-type UsersServiceMock = Record<'findById' | 'verifyPayPassword', jest.Mock>
+type UsersServiceMock = Record<'findById' | 'verifyPayPassword' | 'checkAndIncrementDailyLimit', jest.Mock>
 type RedisMock = Record<'isEnabled' | 'withLock', jest.Mock>
 type ChannelRegistryMock = Record<'getChannel' | 'getEnabledConfig' | 'getChannelByType', jest.Mock>
 type RiskEngineMock = Record<'check' | 'recordTransaction', jest.Mock>
@@ -55,6 +55,7 @@ describe('WithdrawalsService', () => {
     usersService = {
       findById: jest.fn(),
       verifyPayPassword: jest.fn(),
+      checkAndIncrementDailyLimit: jest.fn().mockResolvedValue(undefined),
     }
 
     redis = {

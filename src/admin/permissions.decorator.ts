@@ -11,6 +11,7 @@ export type Permission =
   | 'user:status'
   | 'risk:config'
   | 'risk:event:handle'
+  | 'admin:view'
 
 export const PERMISSIONS_KEY = 'permissions'
 
@@ -19,6 +20,7 @@ export const PERMISSIONS_KEY = 'permissions'
  *
  * - SUPER_ADMIN 拥有所有权限
  * - 其他角色仅拥有各自职能范围内的权限
+ * - admin:view 为通用查询权限，所有后台角色均可读管理后台基础数据
  */
 export const ROLE_PERMISSIONS: Record<AdminRole, Permission[] | '*'> = {
   SUPER_ADMIN: '*',
@@ -27,9 +29,10 @@ export const ROLE_PERMISSIONS: Record<AdminRole, Permission[] | '*'> = {
     'withdrawal:audit',
     'reconciliation:run',
     'finance:view',
+    'admin:view',
   ],
-  CUSTOMER_SERVICE: ['identity:audit', 'merchant:audit', 'user:status'],
-  RISK_OFFICER: ['risk:config', 'risk:event:handle'],
+  CUSTOMER_SERVICE: ['identity:audit', 'merchant:audit', 'user:status', 'admin:view'],
+  RISK_OFFICER: ['risk:config', 'risk:event:handle', 'admin:view'],
 }
 
 /**

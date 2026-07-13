@@ -3,6 +3,7 @@ import {
   BadRequestException,
   NotFoundException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import {
@@ -23,10 +24,12 @@ import { JournalService } from '../finance/journal.service'
 import { CryptoService } from '../crypto/crypto.service'
 import { fenToYuan, generateOrderNo, yuanToFen } from '../common/helpers'
 import { KBErrorCodes, kbError } from '../common/error-codes'
-import { LARGE_WITHDRAWAL_THRESHOLD_CENTS, RATE_DENOMINATOR, REDIS_LOCK_TTL_SECONDS } from '../common/constants'
+import { DEFAULT_WITHDRAW_DAILY_LIMIT_CENTS, LARGE_WITHDRAWAL_THRESHOLD_CENTS, RATE_DENOMINATOR, REDIS_LOCK_TTL_SECONDS } from '../common/constants'
 
 @Injectable()
 export class WithdrawalsService {
+  private readonly logger = new Logger(WithdrawalsService.name)
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
@@ -123,6 +126,24 @@ export class WithdrawalsService {
         }
       }
 
+      // 单日提现限额：从 systemConfig 读取（单位元），默认 DEFAULT_WITHDRAW_DAILY_LIMIT_CENTS
+      const dateStr = new Date().toISOString().slice(0, 10)
+      const limitConfig = await tx.systemConfig.findUnique({
+        where: { key: 'withdrawal_daily_limit' },
+      })
+      const withdrawLimit = limitConfig
+        ? Math.round(Number(limitConfig.value) * 100)
+        : DEFAULT_WITHDRAW_DAILY_LIMIT_CENTS
+      // 限额校验放入事务内，保证原子性，避免高并发突破限额
+      await this.usersService.checkAndIncrementDailyLimit(
+        tx,
+        userId,
+        'WITHDRAW',
+        dateStr,
+        amount,
+        withdrawLimit,
+      )
+
       const account = await tx.account.findUnique({ where: { userId } })
       if (!account) throw new NotFoundException(kbError(KBErrorCodes.ACCOUNT_NOT_FOUND))
 
@@ -189,6 +210,15 @@ export class WithdrawalsService {
           },
         })
       }
+
+      // 提现申请创建成功后记录风控频率（不阻塞业务）
+      this.riskEngine.recordTransaction({
+        userId,
+        type: 'WITHDRAW',
+        amount,
+      }).catch((err) => {
+        this.logger.warn(`recordTransaction(WITHDRAW) 失败: ${err?.message || err}`)
+      })
 
       return order
     })
@@ -379,13 +409,22 @@ export class WithdrawalsService {
       }
 
       // 代付成功：保存渠道订单号（回调到达前先持久化，避免回调因 channelOrderNo 为空被拒）
-      return this.prisma.withdrawalOrder.update({
+      const updated = await this.prisma.withdrawalOrder.update({
         where: { id: orderId },
         data: {
           channel: code,
           channelOrderNo: payoutResult.channelOrderNo,
         },
       })
+      // 代付放款成功后记录风控频率（不阻塞业务）
+      this.riskEngine.recordTransaction({
+        userId: order.userId,
+        type: 'WITHDRAW',
+        amount: order.amount,
+      }).catch((err) => {
+        this.logger.warn(`recordTransaction(WITHDRAW approve) 失败: ${err?.message || err}`)
+      })
+      return updated
     })
   }
 

@@ -573,6 +573,8 @@ describe('CashierService', () => {
   describe('closeExpiredOrders 关闭过期订单', () => {
     it('批量关闭过期订单', async () => {
       prisma.paymentOrder.updateMany.mockResolvedValue({ count: 3 })
+      // 补偿通知分支查不到待重试订单时直接返回
+      prisma.paymentOrder.findMany.mockResolvedValue([])
       await service.closeExpiredOrders()
       expect(prisma.paymentOrder.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
