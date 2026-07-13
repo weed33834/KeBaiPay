@@ -22,7 +22,8 @@ export class SettlementSchedule {
     const lockKey = 'settlement:daily'
     this.scheduleHealth.reportStart('settlement:daily')
     try {
-      await this.redis.withLock(lockKey, 300_000, async () => {
+      // 锁 TTL 单位是秒，300 秒 = 5 分钟（与 cron 周期匹配）；误传 300_000 会占锁 3.47 天
+      await this.redis.withLock(lockKey, 300, async () => {
         this.logger.log('开始执行每日 T+1 结算任务...')
         try {
           const results = await this.settlement.runDailySettlement()

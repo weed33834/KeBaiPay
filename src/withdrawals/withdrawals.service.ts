@@ -350,61 +350,20 @@ export class WithdrawalsService {
           channelConfig: config,
         })
       } catch (error) {
-        // 渠道调用失败/超时不代表代付未发生：标记为 FAILED（终态）而非回退 PENDING，
-        // 避免管理员重试导致双倍代付。使用 updateMany + status:PROCESSING 条件与代付回调互斥：
-        // 仅当订单仍为 PROCESSING 时才退款；count===0 说明回调已先行改变状态，不覆盖、不重复退款。
-        const failureReason = `代付渠道调用失败：${error instanceof Error ? error.message : '未知错误'}`
-        await this.prisma.$transaction(async (tx) => {
-          const statusUpdate = await tx.withdrawalOrder.updateMany({
-            where: { id: orderId, status: WithdrawalStatus.PROCESSING },
-            data: {
-              status: WithdrawalStatus.FAILED,
-              remark: failureReason,
-            },
-          })
-          if (statusUpdate.count === 0) {
-            // 状态已被回调改变（SUCCESS 或 FAILED），不再退款，避免与回调竞态导致余额双记
-            return
-          }
-          // 退款：approve 阶段扣减了 frozenBalance 和 totalBalance（资金已出账），
-          // 失败时退回到 availableBalance 和 totalBalance，使资金回到可用余额，
-          // 与代付回调失败路径保持一致（避免资金卡在冻结状态）。
-          const refundAccount = await tx.account.update({
-            where: { id: locked.account.id },
-            data: {
-              availableBalance: { increment: order.amount },
-              totalBalance: { increment: order.amount },
-            },
-          })
-
-          // H1: 补全退款账本与账单，与回调失败路径保持一致
-          const refundBalanceAfter = refundAccount.availableBalance
-          const refundBalanceBefore = refundBalanceAfter - order.amount
-          await tx.accountLedger.create({
-            data: {
-              accountId: locked.account.id,
-              transactionId: order.id,
-              type: LedgerType.WITHDRAW,
-              amount: order.amount,
-              balanceBefore: refundBalanceBefore,
-              balanceAfter: refundBalanceAfter,
-              direction: Direction.DEBIT,
-              remark: '代付失败退回',
-            },
-          })
-          await tx.bill.create({
-            data: {
-              userId: order.userId,
-              transactionId: order.id,
-              type: BillType.WITHDRAW,
-              direction: BillDirection.INCOME,
-              amount: order.amount,
-              remark: '代付失败退回',
-            },
-          })
+        // 渠道调用超时/网络异常不等于代付未发生：若渠道实际已放款而平台自动退款，
+        // 用户将双得、平台亏钱。此处保留 PROCESSING 状态，仅记录异常原因，
+        // 由 withdrawals.schedule.ts 的超时扫描器（10 分钟后）调用 queryPayout 核对渠道真实状态，
+        // 再由人工通过回调或调账流程处理，确保资金不因误判而双记。
+        const failureReason = `代付渠道调用异常：${error instanceof Error ? error.message : '未知错误'}`
+        await this.prisma.withdrawalOrder.updateMany({
+          where: { id: orderId, status: WithdrawalStatus.PROCESSING },
+          data: { remark: failureReason },
         })
+        this.logger.warn(
+          `提现订单 ${order.orderNo} 渠道调用异常，保持 PROCESSING 等待超时扫描器核对：${failureReason}`,
+        )
         throw new BadRequestException(
-          kbError(KBErrorCodes.PAYOUT_CHANNEL_FAILED, failureReason),
+          kbError(KBErrorCodes.PAYOUT_CHANNEL_FAILED, `${failureReason}，订单保持处理中，等待系统核对渠道真实状态`),
         )
       }
 

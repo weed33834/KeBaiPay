@@ -203,7 +203,8 @@ export class RedPacketsService {
       async () => this.prisma.$transaction(async (tx) => {
       const packet = await tx.redPacket.findUnique({
         where: { packetNo },
-        include: { sender: true },
+        // 仅加载 nickname 用于账单 counterparty，避免泄露 sender 的密码哈希/手机号/身份证等 PII
+        include: { sender: { select: { nickname: true } } },
       })
       if (!packet) throw new NotFoundException(kbError(KBErrorCodes.RED_PACKET_NOT_FOUND))
 
@@ -465,7 +466,8 @@ export class RedPacketsService {
     return this.prisma.redPacketRecord.findMany({
       where: { receiverId: userId, type: RedPacketRecordType.RECEIVE },
       orderBy: { createdAt: 'desc' },
-      include: { redPacket: { include: { sender: true } } },
+      // 仅加载 sender.nickname，避免泄露密码哈希/手机号/身份证等 PII
+      include: { redPacket: { include: { sender: { select: { nickname: true } } } } },
     })
   }
 

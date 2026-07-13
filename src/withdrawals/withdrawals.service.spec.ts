@@ -435,7 +435,7 @@ describe('WithdrawalsService', () => {
       )
     })
 
-    it('渠道调用失败：状态守卫 FAILED 并退款，不回退 PENDING 避免双倍代付', async () => {
+    it('渠道调用异常：保留 PROCESSING 不退款，等待超时扫描器核对渠道真实状态', async () => {
       // 模拟渠道 createPayout 抛错（网络/渠道异常）
       const payoutError = new Error('渠道超时')
       jest.spyOn(mockChannel, 'createPayout').mockRejectedValueOnce(payoutError)
@@ -465,40 +465,24 @@ describe('WithdrawalsService', () => {
       // 事务1：订单锁定 + 冻结扣减成功
       prisma.withdrawalOrder.updateMany.mockResolvedValue({ count: 1 })
       prisma.account.updateMany.mockResolvedValue({ count: 1 })
-      // 事务2：失败路径状态守卫获胜（订单仍为 PROCESSING）
-      prisma.withdrawalOrder.updateMany.mockResolvedValueOnce({ count: 1 })
-      prisma.account.update.mockResolvedValue({
-        id: 'a1',
-        availableBalance: 10000,
-        frozenBalance: 0,
-        totalBalance: 10000,
-      })
 
       await expect(service.approve('w1', 'admin1')).rejects.toThrow(BadRequestException)
 
-      // 失败路径使用 updateMany + status:PROCESSING 状态守卫，仅获胜方退款
+      // 渠道异常时仅更新 remark，保留 PROCESSING 状态，不标记 FAILED、不退款
       expect(prisma.withdrawalOrder.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'w1', status: 'PROCESSING' },
-          data: expect.objectContaining({ status: 'FAILED' }),
+          data: expect.objectContaining({ remark: expect.stringContaining('代付渠道调用异常') }),
         }),
       )
-      // 退款：availableBalance 和 totalBalance 加回（approve 阶段已扣减 frozen+total）
-      expect(prisma.account.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 'a1' },
-          data: {
-            availableBalance: { increment: 1000 },
-            totalBalance: { increment: 1000 },
-          },
-        }),
-      )
+      // 不应退款：渠道实际可能已放款，自动退款会导致用户双得
+      expect(prisma.account.update).not.toHaveBeenCalled()
       // 不应回退为 PENDING（避免管理员重试导致双倍代付）
       expect(prisma.withdrawalOrder.update).not.toHaveBeenCalled()
     })
 
-    it('渠道调用失败但状态已被回调改变：不重复退款（与回调竞态安全）', async () => {
-      // 模拟渠道 createPayout 抛错，但代付回调已先行将订单置为 SUCCESS
+    it('渠道调用异常：即使回调已先行改变状态也不影响（保留 PROCESSING，不退款）', async () => {
+      // 模拟渠道 createPayout 抛错，但代付回调可能已先行将订单置为 SUCCESS
       const payoutError = new Error('渠道超时')
       jest.spyOn(mockChannel, 'createPayout').mockRejectedValueOnce(payoutError)
 
@@ -526,13 +510,13 @@ describe('WithdrawalsService', () => {
       })
       // 事务1：订单锁定 + 冻结扣减成功
       prisma.account.updateMany.mockResolvedValue({ count: 1 })
-      // withdrawalOrder.updateMany 调用顺序：tx1 锁定(count=1) → tx2 状态守卫(count=0)
+      // withdrawalOrder.updateMany 调用顺序：tx1 锁定(count=1) → 渠道异常后更新 remark(count=0 表示状态已被回调改变)
       prisma.withdrawalOrder.updateMany
         .mockResolvedValueOnce({ count: 1 })
         .mockResolvedValueOnce({ count: 0 })
 
       await expect(service.approve('w1', 'admin1')).rejects.toThrow(BadRequestException)
-      // 状态守卫 count=0 时不应退款，避免与回调竞态导致余额双记
+      // 新行为：渠道异常时保留 PROCESSING 不退款，等待超时扫描器核对渠道真实状态
       expect(prisma.account.update).not.toHaveBeenCalled()
     })
   })
