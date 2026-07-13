@@ -4,6 +4,7 @@ import {
   ExecutionContext,
   CallHandler,
 } from '@nestjs/common'
+import { Request } from 'express'
 import { Observable, map } from 'rxjs'
 
 const SENSITIVE_FIELDS = new Set([
@@ -31,6 +32,11 @@ const SENSITIVE_FIELDS = new Set([
 @Injectable()
 export class ResponseTransformInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    const req = context.switchToHttp().getRequest<Request>()
+    // 健康检查端点返回原始结构，k8s/docker probe 依赖 status 字段与状态码判断
+    if (req.path.startsWith('/health')) {
+      return next.handle()
+    }
     return next.handle().pipe(
       map((data) => this.stripSensitiveFields(data)),
     )

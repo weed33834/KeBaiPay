@@ -10,6 +10,33 @@ import compression from 'compression'
 import { AppModule } from './app.module'
 import { SecurityValidatorService } from './security/security-validator.service'
 import { ResponseTransformInterceptor } from './common/response-transform.interceptor'
+import { AllExceptionsFilter } from './common/all-exceptions.filter'
+import { patchLoggerWithTraceId } from './common/trace-context'
+
+// 在 NestFactory.create 之前 patch Logger 原型，
+// 使所有 service 层 Logger 实例的 log/warn/error 自动注入 [traceId] 前缀
+patchLoggerWithTraceId()
+
+// 进程级异常兜底：Nest 容器生命周期之外的异常必须接管，
+// 否则 Promise rejection 会让进程进入未定义状态，资金类操作可能数据错乱。
+// 策略：记录完整 stack 后退出，由容器编排（k8s/docker）拉起新实例。
+const bootstrapLogger = new Logger('Bootstrap')
+process.on('unhandledRejection', (reason: unknown) => {
+  bootstrapLogger.error(
+    `Unhandled promise rejection: ${reason instanceof Error ? reason.message : reason}`,
+    reason instanceof Error ? reason.stack : undefined,
+  )
+  // 不立即 process.exit，给日志 flush 时间；下一个事件循环再退
+  setImmediate(() => process.exit(1))
+})
+process.on('uncaughtException', (err: Error) => {
+  bootstrapLogger.error(
+    `Uncaught exception: ${err.message}`,
+    err.stack,
+  )
+  // uncaughtException 后进程状态不可预测，必须退出
+  setImmediate(() => process.exit(1))
+})
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true })
@@ -73,6 +100,10 @@ async function bootstrap() {
   )
 
   app.useGlobalInterceptors(new ResponseTransformInterceptor())
+
+  // 全局异常过滤器：统一所有未捕获异常的响应格式，
+  // Prisma 错误转换为业务错误码，未知错误剥离 stack 避免信息泄露
+  app.useGlobalFilters(new AllExceptionsFilter())
 
   const allowedOrigins = process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim())

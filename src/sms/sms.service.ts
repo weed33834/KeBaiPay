@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { RedisService } from '../redis/redis.service';
+import { maskPhone } from '../common/helpers';
 
 export interface SmsConfig {
   provider: 'aliyun' | 'tencent' | 'huawei' | 'mock';
@@ -107,7 +108,7 @@ export class SmsService implements OnModuleDestroy {
       // 首次 incr 已设 TTL
     }
     if (phoneDailyCount > DAILY_LIMIT_PER_PHONE) {
-      this.logger.warn(`手机号 ${phone} 当日发送量超限: ${phoneDailyCount}`);
+      this.logger.warn(`手机号 ${maskPhone(phone)} 当日发送量超限: ${phoneDailyCount}`);
       return {
         success: false,
         code: 'SMS_DAILY_LIMIT',
@@ -153,9 +154,9 @@ export class SmsService implements OnModuleDestroy {
     const result = await this.sendSms(phone, code, scene);
 
     if (result.success) {
-      this.logger.log(`验证码已发送: ${phone} -> ${scene}`);
+      this.logger.log(`验证码已发送: ${maskPhone(phone)} -> ${scene}`);
     } else {
-      this.logger.warn(`验证码发送失败: ${phone} -> ${result.message}`);
+      this.logger.warn(`验证码发送失败: ${maskPhone(phone)} -> ${result.message}`);
       // 发送失败时回滚限流计数，避免运营商失败也消耗用户配额
       await this.redis.decr(phoneDailyKey).catch(() => {});
       if (clientIp) {
@@ -357,7 +358,7 @@ export class SmsService implements OnModuleDestroy {
         });
       });
 
-      this.logger.log(`[阿里云] 发送验证码到 ${phone}: ${result.success ? '成功' : '失败 ' + result.message}`);
+      this.logger.log(`[阿里云] 发送验证码到 ${maskPhone(phone)}: ${result.success ? '成功' : '失败 ' + result.message}`);
       return result;
     } catch (error: any) {
       return { success: false, code: 'ALIYUN_ERROR', message: error.message || '发送失败', provider: 'aliyun' };
@@ -371,7 +372,7 @@ export class SmsService implements OnModuleDestroy {
     try {
       // 腾讯云 API 调用需 tencentcloud-sdk-nodejs 包；此处仅记录日志，实际接入需安装 SDK
       // ⚠️ 待办建议：接入腾讯云官方 SDK（npm i tencentcloud-sdk-nodejs）后替换为真实调用
-      this.logger.warn(`[腾讯云] 短信 SDK 未接入，验证码 ${code} 未真正发送到 ${phone}（场景: ${scene}）`);
+      this.logger.warn(`[腾讯云] 短信 SDK 未接入，验证码未真正发送到 ${maskPhone(phone)}（场景: ${scene}）`);
       return {
         success: false,
         code: 'TENCENT_NOT_IMPLEMENTED',
@@ -389,7 +390,7 @@ export class SmsService implements OnModuleDestroy {
   private async sendHuaweiSms(phone: string, code: string, scene: string): Promise<SendSmsResult> {
     try {
       // ⚠️ 待办建议：接入华为云官方 SDK 后替换为真实调用
-      this.logger.warn(`[华为云] 短信 SDK 未接入，验证码 ${code} 未真正发送到 ${phone}（场景: ${scene}）`);
+      this.logger.warn(`[华为云] 短信 SDK 未接入，验证码未真正发送到 ${maskPhone(phone)}（场景: ${scene}）`);
       return {
         success: false,
         code: 'HUAWEI_NOT_IMPLEMENTED',
@@ -403,9 +404,10 @@ export class SmsService implements OnModuleDestroy {
 
   /**
    * 模拟发送（仅开发环境，生产环境在 loadConfig 时已抛错）
+   * 开发环境打印验证码方便调试；手机号仍脱敏避免日志汇聚后泄露
    */
   private async sendMockSms(phone: string, code: string, scene: string): Promise<SendSmsResult> {
-    this.logger.log(`[MOCK] 验证码 -> ${phone}: ${code} (场景: ${scene})`);
+    this.logger.log(`[MOCK] 验证码 -> ${maskPhone(phone)} code=${code} (场景: ${scene})`);
     return {
       success: true,
       messageId: crypto.randomUUID(),

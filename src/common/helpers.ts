@@ -50,6 +50,16 @@ export function generateAppSecret(): string {
 }
 
 /**
+ * 手机号脱敏：保留前 3 位和后 4 位，中间用 **** 替换
+ * 例：13812341234 → 138****1234
+ * 长度不足 7 位的号码全部替换为 ****，避免泄露
+ */
+export function maskPhone(phone: string): string {
+  if (!phone || phone.length < 7) return '****'
+  return `${phone.slice(0, 3)}****${phone.slice(-4)}`
+}
+
+/**
  * 校验回调 URL 是否安全（防 SSRF，含 DNS rebinding 防护）
  *
  * 拦截：非 http/https 协议、hostname 为内网字面量、以及 DNS 解析出的

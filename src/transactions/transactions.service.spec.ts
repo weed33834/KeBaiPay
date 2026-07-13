@@ -33,6 +33,9 @@ describe('TransactionsService', () => {
   let mockChannel: MockChannel
 
   beforeEach(async () => {
+    // P0-5: recharge 已移除 '/webhooks/recharge/mock' fallback，测试需显式提供
+    process.env.RECHARGE_NOTIFY_URL = 'http://localhost:3000/webhooks/recharge/mock'
+
     prisma = {
       $transaction: jest.fn(async (cb: (p: PrismaMock) => Promise<unknown>) => cb(prisma)),
       transactionOrder: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },

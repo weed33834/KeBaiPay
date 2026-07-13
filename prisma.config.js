@@ -1,4 +1,12 @@
 const path = require('node:path')
+const fs = require('node:fs')
+
+// Prisma 7 的 prisma.config.js 不会自动加载 .env 文件，需手动加载。
+// 仅在 .env 存在时加载（生产环境通常用容器注入的环境变量，无 .env 文件）
+const envPath = path.join(__dirname, '.env')
+if (fs.existsSync(envPath)) {
+  require('dotenv').config({ path: envPath })
+}
 
 /**
  * Prisma 7 配置文件

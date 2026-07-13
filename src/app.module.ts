@@ -32,10 +32,11 @@ import { NotificationsModule } from './notifications/notifications.module'
 import { SmsModule } from './sms/sms.module'
 import { RequestLoggingMiddleware } from './common/request-logging.middleware'
 import { ScheduleHealthModule } from './common/schedule-health.module'
+import { validateEnv } from './common/env-validation'
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([
       {

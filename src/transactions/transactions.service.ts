@@ -114,7 +114,14 @@ export class TransactionsService {
     }
 
     // 调用渠道发起支付
-    const notifyUrl = process.env.RECHARGE_NOTIFY_URL || '/webhooks/recharge/mock'
+    // notifyUrl 必须显式配置为外网可访问的完整 URL，不能 fallback 到 '/webhooks/recharge/mock'，
+    // 否则生产环境渠道回调会指向不存在的相对路径，订单永远卡在 PENDING。
+    const notifyUrl = process.env.RECHARGE_NOTIFY_URL
+    if (!notifyUrl) {
+      throw new BadRequestException(
+        kbError(KBErrorCodes.RECHARGE_CHANNEL_FAILED, 'RECHARGE_NOTIFY_URL 未配置'),
+      )
+    }
     let rechargeResult
     try {
       rechargeResult = await channel.createRecharge({
