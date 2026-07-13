@@ -91,12 +91,14 @@ export class AdminController {
     @Param('id') id: string,
     @Body() dto: UpdateUserStatusDto,
     @AdminCurrentUser() admin: AdminCurrentUserType,
+    @Req() req: Request,
   ) {
     return this.adminService.updateUserStatus(
       id,
       dto.status,
       dto.reason,
       admin.sub,
+      this.extractAuditMeta(req),
     )
   }
 
@@ -108,8 +110,14 @@ export class AdminController {
     @Param('id') id: string,
     @Body() dto: UpdateUserRiskLevelDto,
     @AdminCurrentUser() admin: AdminCurrentUserType,
+    @Req() req: Request,
   ) {
-    return this.adminService.updateUserRiskLevel(id, dto.level, admin.sub)
+    return this.adminService.updateUserRiskLevel(
+      id,
+      dto.level,
+      admin.sub,
+      this.extractAuditMeta(req),
+    )
   }
 
   @Get('merchants')
@@ -328,8 +336,13 @@ export class AdminController {
   approveIdentity(
     @Param('id') id: string,
     @AdminCurrentUser() admin: AdminCurrentUserType,
+    @Req() req: Request,
   ) {
-    return this.adminService.approveIdentity(id, admin.sub)
+    return this.adminService.approveIdentity(
+      id,
+      admin.sub,
+      this.extractAuditMeta(req),
+    )
   }
 
   @Post('identity/:id/reject')
@@ -340,8 +353,14 @@ export class AdminController {
     @Param('id') id: string,
     @Body() dto: RejectIdentityDto,
     @AdminCurrentUser() admin: AdminCurrentUserType,
+    @Req() req: Request,
   ) {
-    return this.adminService.rejectIdentity(id, dto.reason, admin.sub)
+    return this.adminService.rejectIdentity(
+      id,
+      dto.reason,
+      admin.sub,
+      this.extractAuditMeta(req),
+    )
   }
 
   @Post('accounts/:userId/adjust')
@@ -352,8 +371,15 @@ export class AdminController {
     @Param('userId') userId: string,
     @Body() dto: AdjustAccountDto,
     @AdminCurrentUser() admin: AdminCurrentUserType,
+    @Req() req: Request,
   ) {
-    return this.adminService.adjustAccount(userId, dto.amount, dto.reason, admin.sub)
+    return this.adminService.adjustAccount(
+      userId,
+      dto.amount,
+      dto.reason,
+      admin.sub,
+      this.extractAuditMeta(req),
+    )
   }
 
   @Get('audit-logs')

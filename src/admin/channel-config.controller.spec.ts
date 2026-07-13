@@ -9,7 +9,13 @@ import { PermissionsGuard } from './permissions.guard'
 
 describe('ChannelConfigController', () => {
   let controller: ChannelConfigController
-  const mockPrisma = {
+  // 同时支持数组形式与回调形式的 $transaction
+  // 回调形式下把 mockPrisma 自身作为 tx 传入（含全部表 mock）
+  const mockPrisma: any = {
+    $transaction: jest.fn(async (arg: unknown) => {
+      if (Array.isArray(arg)) return Promise.all(arg as Promise<unknown>[])
+      return (arg as (tx: any) => Promise<unknown>)(mockPrisma)
+    }),
     paymentChannelConfig: {
       findMany: jest.fn(),
       create: jest.fn(),
@@ -97,6 +103,8 @@ describe('ChannelConfigController', () => {
     const req = { headers: { 'user-agent': 'jest' }, ip: '127.0.0.1' }
     const result = await controller.createChannel(dto as any, admin as any, req as any)
     expect(result).toEqual(created)
+    // 业务写与审计日志必须在同一事务内
+    expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1)
     expect(mockPrisma.paymentChannelConfig.create).toHaveBeenCalledWith({
       data: {
         code: 'wechat',
@@ -107,14 +115,18 @@ describe('ChannelConfigController', () => {
         config: '{}',
       },
     })
-    expect(mockAuditLog.log).toHaveBeenCalledWith({
-      adminId: 'a1',
-      action: 'CHANNEL_CONFIG_CREATE',
-      target: 'wechat',
-      detail: { name: '微信', type: 'RECHARGE' },
-      ip: '127.0.0.1',
-      userAgent: 'jest',
-    })
+    // auditLog.log 第二参数必须传入 tx
+    expect(mockAuditLog.log).toHaveBeenCalledWith(
+      {
+        adminId: 'a1',
+        action: 'CHANNEL_CONFIG_CREATE',
+        target: 'wechat',
+        detail: { name: '微信', type: 'RECHARGE' },
+        ip: '127.0.0.1',
+        userAgent: 'jest',
+      },
+      expect.anything(),
+    )
   })
 
   it('updateChannel 渠道不存在返回 error', async () => {
@@ -145,6 +157,8 @@ describe('ChannelConfigController', () => {
     const req = { headers: { 'user-agent': 'jest' }, ip: '127.0.0.1' }
     const result = await controller.updateChannel('alipay', dto as any, admin as any, req as any)
     expect(result).toEqual(updated)
+    // 业务写与审计日志在同一事务内
+    expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1)
     const updateCall = mockPrisma.paymentChannelConfig.update.mock.calls[0][0]
     expect(updateCall.where).toEqual({ code: 'alipay' })
     expect(updateCall.data.name).toBe('支付宝2')
@@ -156,6 +170,7 @@ describe('ChannelConfigController', () => {
         action: 'CHANNEL_CONFIG_UPDATE',
         target: 'alipay',
       }),
+      expect.anything(),
     )
   })
 
@@ -165,15 +180,20 @@ describe('ChannelConfigController', () => {
     const req = { headers: { 'user-agent': 'jest' }, ip: '127.0.0.1' }
     const result = await controller.deleteChannel('alipay', admin as any, req as any)
     expect(result).toEqual({ success: true })
+    // 业务写与审计日志在同一事务内
+    expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1)
     expect(mockPrisma.paymentChannelConfig.delete).toHaveBeenCalledWith({ where: { code: 'alipay' } })
-    expect(mockAuditLog.log).toHaveBeenCalledWith({
-      adminId: 'a1',
-      action: 'CHANNEL_CONFIG_DELETE',
-      target: 'alipay',
-      detail: {},
-      ip: '127.0.0.1',
-      userAgent: 'jest',
-    })
+    expect(mockAuditLog.log).toHaveBeenCalledWith(
+      {
+        adminId: 'a1',
+        action: 'CHANNEL_CONFIG_DELETE',
+        target: 'alipay',
+        detail: {},
+        ip: '127.0.0.1',
+        userAgent: 'jest',
+      },
+      expect.anything(),
+    )
   })
 
   it('testChannel 返回渠道可用信息', async () => {

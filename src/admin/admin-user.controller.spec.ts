@@ -47,7 +47,8 @@ describe('AdminUserController', () => {
   it('create 透传 dto 字段到 createAdminUser', async () => {
     const admin = { sub: 'a1', role: 'SUPER_ADMIN' }
     const dto = { username: 'newadmin', password: '12345678', role: 'FINANCE', nickname: '财务' }
-    await controller.create(dto as any, admin as any)
+    const req = { headers: { 'user-agent': 'jest' }, ip: '127.0.0.1' }
+    await controller.create(dto as any, admin as any, req as any)
     expect(mockAdminService.createAdminUser).toHaveBeenCalledWith(
       {
         username: 'newadmin',
@@ -59,23 +60,35 @@ describe('AdminUserController', () => {
     )
   })
 
-  it('update 透传 id/dto/sub 到 updateAdminUser', async () => {
+  it('update 透传 id/dto/sub/auditMeta 到 updateAdminUser', async () => {
     const admin = { sub: 'a1', role: 'SUPER_ADMIN' }
     const dto = { nickname: '新昵称' }
-    await controller.update('a2', dto as any, admin as any)
-    expect(mockAdminService.updateAdminUser).toHaveBeenCalledWith('a2', dto, 'a1')
+    const req = { headers: { 'user-agent': 'jest' }, ip: '127.0.0.1' }
+    await controller.update('a2', dto as any, admin as any, req as any)
+    expect(mockAdminService.updateAdminUser).toHaveBeenCalledWith('a2', dto, 'a1', {
+      ip: '127.0.0.1',
+      userAgent: 'jest',
+    })
   })
 
-  it('delete 透传 id/sub 到 deleteAdminUser', async () => {
+  it('delete 透传 id/sub/auditMeta 到 deleteAdminUser', async () => {
     const admin = { sub: 'a1', role: 'SUPER_ADMIN' }
-    await controller.delete('a2', admin as any)
-    expect(mockAdminService.deleteAdminUser).toHaveBeenCalledWith('a2', 'a1')
+    const req = { headers: { 'user-agent': 'jest' }, ip: '127.0.0.1' }
+    await controller.delete('a2', admin as any, req as any)
+    expect(mockAdminService.deleteAdminUser).toHaveBeenCalledWith('a2', 'a1', {
+      ip: '127.0.0.1',
+      userAgent: 'jest',
+    })
   })
 
-  it('resetPassword 透传 id/newPassword/sub 到 resetAdminPassword', async () => {
+  it('resetPassword 透传 id/newPassword/sub/auditMeta 到 resetAdminPassword', async () => {
     const admin = { sub: 'a1', role: 'SUPER_ADMIN' }
     const dto = { newPassword: '87654321' }
-    await controller.resetPassword('a2', dto as any, admin as any)
-    expect(mockAdminService.resetAdminPassword).toHaveBeenCalledWith('a2', '87654321', 'a1')
+    const req = { headers: { 'user-agent': 'jest' }, ip: '127.0.0.1' }
+    await controller.resetPassword('a2', dto as any, admin as any, req as any)
+    expect(mockAdminService.resetAdminPassword).toHaveBeenCalledWith('a2', '87654321', 'a1', {
+      ip: '127.0.0.1',
+      userAgent: 'jest',
+    })
   })
 })

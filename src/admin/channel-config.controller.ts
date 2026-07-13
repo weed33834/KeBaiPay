@@ -89,27 +89,33 @@ export class ChannelConfigController {
     @AdminCurrentUser() admin: AdminCurrentUserType,
     @Req() req: Request,
   ) {
-    const result = await this.prisma.paymentChannelConfig.create({
-      data: {
-        code: dto.code,
-        name: dto.name,
-        type: dto.type,
-        enabled: dto.enabled,
-        priority: dto.priority,
-        config: dto.config,
-      },
-    })
+    // 业务写与审计日志在同一事务，保证渠道创建可追溯
+    return this.prisma.$transaction(async (tx) => {
+      const result = await tx.paymentChannelConfig.create({
+        data: {
+          code: dto.code,
+          name: dto.name,
+          type: dto.type,
+          enabled: dto.enabled,
+          priority: dto.priority,
+          config: dto.config,
+        },
+      })
 
-    await this.auditLog.log({
-      adminId: admin.sub,
-      action: 'CHANNEL_CONFIG_CREATE',
-      target: dto.code,
-      detail: { name: dto.name, type: dto.type },
-      ip: req.ip,
-      userAgent: req.headers['user-agent'] as string,
-    })
+      await this.auditLog.log(
+        {
+          adminId: admin.sub,
+          action: 'CHANNEL_CONFIG_CREATE',
+          target: dto.code,
+          detail: { name: dto.name, type: dto.type },
+          ip: req.ip,
+          userAgent: req.headers['user-agent'] as string,
+        },
+        tx,
+      )
 
-    return result
+      return result
+    })
   }
 
   @Put(':code')
@@ -145,27 +151,33 @@ export class ChannelConfigController {
       }
     }
 
-    const result = await this.prisma.paymentChannelConfig.update({
-      where: { code },
-      data: {
-        ...(dto.name !== undefined && { name: dto.name }),
-        ...(dto.type !== undefined && { type: dto.type }),
-        ...(dto.enabled !== undefined && { enabled: dto.enabled }),
-        ...(dto.priority !== undefined && { priority: dto.priority }),
-        config: mergedConfig,
-      },
-    })
+    // 业务写与审计日志在同一事务，保证渠道变更可追溯
+    return this.prisma.$transaction(async (tx) => {
+      const result = await tx.paymentChannelConfig.update({
+        where: { code },
+        data: {
+          ...(dto.name !== undefined && { name: dto.name }),
+          ...(dto.type !== undefined && { type: dto.type }),
+          ...(dto.enabled !== undefined && { enabled: dto.enabled }),
+          ...(dto.priority !== undefined && { priority: dto.priority }),
+          config: mergedConfig,
+        },
+      })
 
-    await this.auditLog.log({
-      adminId: admin.sub,
-      action: 'CHANNEL_CONFIG_UPDATE',
-      target: code,
-      detail: dto,
-      ip: req.ip,
-      userAgent: req.headers['user-agent'] as string,
-    })
+      await this.auditLog.log(
+        {
+          adminId: admin.sub,
+          action: 'CHANNEL_CONFIG_UPDATE',
+          target: code,
+          detail: dto,
+          ip: req.ip,
+          userAgent: req.headers['user-agent'] as string,
+        },
+        tx,
+      )
 
-    return result
+      return result
+    })
   }
 
   @Delete(':code')
@@ -177,15 +189,21 @@ export class ChannelConfigController {
     @AdminCurrentUser() admin: AdminCurrentUserType,
     @Req() req: Request,
   ) {
-    await this.prisma.paymentChannelConfig.delete({ where: { code } })
+    // 业务写与审计日志在同一事务，保证渠道删除可追溯
+    await this.prisma.$transaction(async (tx) => {
+      await tx.paymentChannelConfig.delete({ where: { code } })
 
-    await this.auditLog.log({
-      adminId: admin.sub,
-      action: 'CHANNEL_CONFIG_DELETE',
-      target: code,
-      detail: {},
-      ip: req.ip,
-      userAgent: req.headers['user-agent'] as string,
+      await this.auditLog.log(
+        {
+          adminId: admin.sub,
+          action: 'CHANNEL_CONFIG_DELETE',
+          target: code,
+          detail: {},
+          ip: req.ip,
+          userAgent: req.headers['user-agent'] as string,
+        },
+        tx,
+      )
     })
 
     return { success: true }

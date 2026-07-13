@@ -12,6 +12,7 @@ describe('AdminController', () => {
     getDashboardStats: jest.fn().mockResolvedValue({ totalUsers: 10 }),
     listUsers: jest.fn().mockResolvedValue({ data: [], total: 0 }),
     updateUserStatus: jest.fn().mockResolvedValue({ id: 'u1' }),
+    updateUserRiskLevel: jest.fn().mockResolvedValue({ id: 'u1' }),
     approveIdentity: jest.fn().mockResolvedValue({ id: 'i1' }),
     rejectIdentity: jest.fn().mockResolvedValue({ id: 'i1' }),
     adjustAccount: jest.fn().mockResolvedValue({ success: true }),
@@ -62,11 +63,29 @@ describe('AdminController', () => {
     expect(mockAdminService.listUsers).toHaveBeenCalledWith(query)
   })
 
-  it('updateUserStatus 透传 id/status/reason/adminId', async () => {
+  it('updateUserStatus 透传 id/status/reason/adminId/auditMeta', async () => {
     const admin = { sub: 'a1', role: 'SUPER_ADMIN' }
     const dto = { status: 'FROZEN', reason: '违规' }
-    await controller.updateUserStatus('u1', dto as any, admin as any)
-    expect(mockAdminService.updateUserStatus).toHaveBeenCalledWith('u1', 'FROZEN', '违规', 'a1')
+    const req = { headers: { 'user-agent': 'jest' }, ip: '127.0.0.1' }
+    await controller.updateUserStatus('u1', dto as any, admin as any, req as any)
+    expect(mockAdminService.updateUserStatus).toHaveBeenCalledWith(
+      'u1',
+      'FROZEN',
+      '违规',
+      'a1',
+      { ip: '127.0.0.1', userAgent: 'jest' },
+    )
+  })
+
+  it('updateUserRiskLevel 透传 id/level/adminId/auditMeta', async () => {
+    const admin = { sub: 'a1', role: 'SUPER_ADMIN' }
+    const dto = { level: 'HIGH' }
+    const req = { headers: { 'user-agent': 'jest' }, ip: '127.0.0.1' }
+    await controller.updateUserRiskLevel('u1', dto as any, admin as any, req as any)
+    expect(mockAdminService.updateUserRiskLevel).toHaveBeenCalledWith('u1', 'HIGH', 'a1', {
+      ip: '127.0.0.1',
+      userAgent: 'jest',
+    })
   })
 
   it('approveWithdrawal 调用 approve 并记录审计', async () => {
@@ -98,23 +117,35 @@ describe('AdminController', () => {
     )
   })
 
-  it('approveIdentity 透传 id 和 adminId', async () => {
+  it('approveIdentity 透传 id/adminId/auditMeta', async () => {
     const admin = { sub: 'a1', role: 'SUPER_ADMIN' }
-    await controller.approveIdentity('i1', admin as any)
-    expect(mockAdminService.approveIdentity).toHaveBeenCalledWith('i1', 'a1')
+    const req = { headers: { 'user-agent': 'jest' }, ip: '127.0.0.1' }
+    await controller.approveIdentity('i1', admin as any, req as any)
+    expect(mockAdminService.approveIdentity).toHaveBeenCalledWith('i1', 'a1', {
+      ip: '127.0.0.1',
+      userAgent: 'jest',
+    })
   })
 
-  it('rejectIdentity 透传 id/reason/adminId', async () => {
+  it('rejectIdentity 透传 id/reason/adminId/auditMeta', async () => {
     const admin = { sub: 'a1', role: 'SUPER_ADMIN' }
     const dto = { reason: '照片模糊' }
-    await controller.rejectIdentity('i1', dto as any, admin as any)
-    expect(mockAdminService.rejectIdentity).toHaveBeenCalledWith('i1', '照片模糊', 'a1')
+    const req = { headers: { 'user-agent': 'jest' }, ip: '127.0.0.1' }
+    await controller.rejectIdentity('i1', dto as any, admin as any, req as any)
+    expect(mockAdminService.rejectIdentity).toHaveBeenCalledWith('i1', '照片模糊', 'a1', {
+      ip: '127.0.0.1',
+      userAgent: 'jest',
+    })
   })
 
-  it('adjustAccount 透传 userId/amount/reason/adminId', async () => {
+  it('adjustAccount 透传 userId/amount/reason/adminId/auditMeta', async () => {
     const admin = { sub: 'a1', role: 'SUPER_ADMIN' }
     const dto = { amount: 100, reason: '补偿' }
-    await controller.adjustAccount('u1', dto as any, admin as any)
-    expect(mockAdminService.adjustAccount).toHaveBeenCalledWith('u1', 100, '补偿', 'a1')
+    const req = { headers: { 'user-agent': 'jest' }, ip: '127.0.0.1' }
+    await controller.adjustAccount('u1', dto as any, admin as any, req as any)
+    expect(mockAdminService.adjustAccount).toHaveBeenCalledWith('u1', 100, '补偿', 'a1', {
+      ip: '127.0.0.1',
+      userAgent: 'jest',
+    })
   })
 })

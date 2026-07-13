@@ -7,15 +7,17 @@ import {
   Post,
   Put,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common'
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger'
+import { Request } from 'express'
 import { AdminJwtAuthGuard } from './admin-jwt-auth.guard'
 import { PermissionsGuard } from './permissions.guard'
 import { RequirePermissions } from './permissions.decorator'
 import { AdminCurrentUser } from './admin-current-user.decorator'
 import { AdminCurrentUser as AdminCurrentUserType } from './admin-current-user.interface'
-import { AdminService } from './admin.service'
+import { AdminService, AuditMeta } from './admin.service'
 import {
   CreateAdminUserDto,
   UpdateAdminUserDto,
@@ -29,6 +31,14 @@ import {
 @UseGuards(AdminJwtAuthGuard, PermissionsGuard)
 export class AdminUserController {
   constructor(private readonly adminService: AdminService) {}
+
+  private extractAuditMeta(req: Request): AuditMeta {
+    const userAgent = req.headers['user-agent']
+    return {
+      ip: req.ip,
+      userAgent: Array.isArray(userAgent) ? userAgent[0] : userAgent,
+    }
+  }
 
   @Get()
   @RequirePermissions('user:status')
@@ -46,6 +56,7 @@ export class AdminUserController {
   create(
     @Body() dto: CreateAdminUserDto,
     @AdminCurrentUser() admin: AdminCurrentUserType,
+    @Req() req: Request,
   ) {
     return this.adminService.createAdminUser(
       {
@@ -66,8 +77,14 @@ export class AdminUserController {
     @Param('id') id: string,
     @Body() dto: UpdateAdminUserDto,
     @AdminCurrentUser() admin: AdminCurrentUserType,
+    @Req() req: Request,
   ) {
-    return this.adminService.updateAdminUser(id, dto, admin.sub)
+    return this.adminService.updateAdminUser(
+      id,
+      dto,
+      admin.sub,
+      this.extractAuditMeta(req),
+    )
   }
 
   @Delete(':id')
@@ -78,8 +95,13 @@ export class AdminUserController {
   delete(
     @Param('id') id: string,
     @AdminCurrentUser() admin: AdminCurrentUserType,
+    @Req() req: Request,
   ) {
-    return this.adminService.deleteAdminUser(id, admin.sub)
+    return this.adminService.deleteAdminUser(
+      id,
+      admin.sub,
+      this.extractAuditMeta(req),
+    )
   }
 
   @Post(':id/reset-password')
@@ -90,7 +112,13 @@ export class AdminUserController {
     @Param('id') id: string,
     @Body() dto: ResetAdminPasswordDto,
     @AdminCurrentUser() admin: AdminCurrentUserType,
+    @Req() req: Request,
   ) {
-    return this.adminService.resetAdminPassword(id, dto.newPassword, admin.sub)
+    return this.adminService.resetAdminPassword(
+      id,
+      dto.newPassword,
+      admin.sub,
+      this.extractAuditMeta(req),
+    )
   }
 }

@@ -195,6 +195,7 @@ export class AdminService {
     status: UserStatus,
     reason?: string,
     adminId?: string,
+    auditMeta?: AuditMeta,
   ) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } })
     if (!user) throw new NotFoundException(kbError(KBErrorCodes.USER_NOT_FOUND))
@@ -224,6 +225,8 @@ export class AdminService {
           action: 'USER_STATUS_UPDATE',
           target: userId,
           detail: { status, reason },
+          ip: auditMeta?.ip,
+          userAgent: auditMeta?.userAgent,
         },
         tx,
       )
@@ -236,6 +239,7 @@ export class AdminService {
     userId: string,
     level: RiskLevel,
     adminId?: string,
+    auditMeta?: AuditMeta,
   ) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } })
     if (!user) throw new NotFoundException(kbError(KBErrorCodes.USER_NOT_FOUND))
@@ -253,6 +257,8 @@ export class AdminService {
           action: 'USER_RISK_LEVEL_UPDATE',
           target: userId,
           detail: { level },
+          ip: auditMeta?.ip,
+          userAgent: auditMeta?.userAgent,
         },
         tx,
       )
@@ -503,36 +509,83 @@ export class AdminService {
     })
     const oldValue = existing?.value ?? null
 
+    // upsert 语义：不存在则创建，存在则更新
+    const updated = await this.persistConfigWithAudit(
+      key,
+      value,
+      oldValue,
+      'SYSTEM_CONFIG_SET',
+      adminId,
+      auditMeta,
+      'upsert',
+    )
+
+    // 风控规则变更后清空规则缓存，使新配置立即生效
+    if (key.startsWith('risk_rule:')) {
+      this.riskEngine.clearCache()
+    }
+
+    return updated
+  }
+
+  /**
+   * 系统配置写入 + 审计日志的共享事务模板。
+   *
+   * 三个公共方法（setSystemConfig / createSystemConfig / updateSystemConfig）
+   * 各自完成语义校验后委托给本方法，避免事务模板与缓存清理逻辑重复。
+   *
+   * @param mode 'upsert' | 'create' | 'update' 决定调用 prisma 的哪个写方法
+   */
+  private async persistConfigWithAudit(
+    key: string,
+    value: string,
+    oldValue: string | null,
+    action: string,
+    adminId: string | undefined,
+    auditMeta: AuditMeta | undefined,
+    mode: 'upsert' | 'create' | 'update',
+  ) {
     // 业务写与审计日志在同一事务，保证配置变更可追溯
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const result = await tx.systemConfig.upsert({
-        where: { key },
-        create: { key, value },
-        update: { value },
-      })
+    const result = await this.prisma.$transaction(async (tx) => {
+      let config: { key: string; value: string }
+      if (mode === 'upsert') {
+        config = await tx.systemConfig.upsert({
+          where: { key },
+          create: { key, value },
+          update: { value },
+        })
+      } else if (mode === 'create') {
+        config = await tx.systemConfig.create({ data: { key, value } })
+      } else {
+        config = await tx.systemConfig.update({ where: { key }, data: { value } })
+      }
 
       // 系统配置变更属于敏感操作，写入防篡改审计日志
+      // create 模式 detail 只含新值（无 old），upsert/update 模式含 old+new
+      const detail =
+        mode === 'create' ? { value } : { old: oldValue, new: value }
+
       await this.auditLog.log(
         {
           adminId: adminId ?? 'system',
-          action: 'SYSTEM_CONFIG_SET',
+          action,
           target: key,
-          detail: { old: oldValue, new: value },
+          detail,
           ip: auditMeta?.ip,
           userAgent: auditMeta?.userAgent,
         },
         tx,
       )
 
-      return result
+      return config
     })
 
-    // 风控规则变更后清空规则缓存，使新配置立即生效（事务外执行，避免 DB 事务持锁过久）
+    // 风控规则变更后清空规则缓存（事务外执行，避免 DB 事务持锁过久）
     if (key.startsWith('risk_rule:')) {
       this.riskEngine.clearCache()
     }
 
-    return updated
+    return result
   }
 
   /**
@@ -636,7 +689,7 @@ export class AdminService {
     return { data, total, page, limit }
   }
 
-  async approveIdentity(id: string, adminId: string) {
+  async approveIdentity(id: string, adminId: string, auditMeta?: AuditMeta) {
     const identity = await this.prisma.identityVerification.findUnique({
       where: { id },
     })
@@ -679,6 +732,8 @@ export class AdminService {
           action: 'IDENTITY_AUDIT',
           target: id,
           detail: { action: 'APPROVE', userId: identity.userId },
+          ip: auditMeta?.ip,
+          userAgent: auditMeta?.userAgent,
         },
         tx,
       )
@@ -688,7 +743,12 @@ export class AdminService {
     })
   }
 
-  async rejectIdentity(id: string, reason: string, adminId: string) {
+  async rejectIdentity(
+    id: string,
+    reason: string,
+    adminId: string,
+    auditMeta?: AuditMeta,
+  ) {
     const identity = await this.prisma.identityVerification.findUnique({
       where: { id },
     })
@@ -723,6 +783,8 @@ export class AdminService {
           action: 'IDENTITY_AUDIT',
           target: id,
           detail: { action: 'REJECT', userId: identity.userId, reason },
+          ip: auditMeta?.ip,
+          userAgent: auditMeta?.userAgent,
         },
         tx,
       )
@@ -737,6 +799,7 @@ export class AdminService {
     amount: number,
     reason: string,
     adminId: string,
+    auditMeta?: AuditMeta,
   ) {
     if (!amount || amount === 0) {
       throw new BadRequestException(kbError(KBErrorCodes.ADJUSTMENT_AMOUNT_INVALID))
@@ -824,6 +887,8 @@ export class AdminService {
               action: 'ACCOUNT_ADJUST',
               target: userId,
               detail: { amountYuan: amount, reason },
+              ip: auditMeta?.ip,
+              userAgent: auditMeta?.userAgent,
             },
             tx,
           )
@@ -944,6 +1009,7 @@ export class AdminService {
     id: string,
     data: { nickname?: string; role?: AdminRole; status?: AdminStatus },
     currentAdminId: string,
+    auditMeta?: AuditMeta,
   ) {
     const admin = await this.prisma.adminUser.findUnique({ where: { id } })
     if (!admin) {
@@ -986,6 +1052,8 @@ export class AdminService {
           action: 'ADMIN_USER_UPDATE',
           target: id,
           detail: { changes: data },
+          ip: auditMeta?.ip,
+          userAgent: auditMeta?.userAgent,
         },
         tx,
       )
@@ -994,7 +1062,11 @@ export class AdminService {
     })
   }
 
-  async deleteAdminUser(id: string, currentAdminId: string) {
+  async deleteAdminUser(
+    id: string,
+    currentAdminId: string,
+    auditMeta?: AuditMeta,
+  ) {
     const admin = await this.prisma.adminUser.findUnique({ where: { id } })
     if (!admin) {
       throw new NotFoundException(kbError(KBErrorCodes.ADMIN_USER_NOT_FOUND))
@@ -1027,6 +1099,8 @@ export class AdminService {
           action: 'ADMIN_USER_DELETE',
           target: id,
           detail: { username: admin.username },
+          ip: auditMeta?.ip,
+          userAgent: auditMeta?.userAgent,
         },
         tx,
       )
@@ -1035,7 +1109,12 @@ export class AdminService {
     })
   }
 
-  async resetAdminPassword(id: string, newPassword: string, currentAdminId: string) {
+  async resetAdminPassword(
+    id: string,
+    newPassword: string,
+    currentAdminId: string,
+    auditMeta?: AuditMeta,
+  ) {
     const admin = await this.prisma.adminUser.findUnique({ where: { id } })
     if (!admin) {
       throw new NotFoundException(kbError(KBErrorCodes.ADMIN_USER_NOT_FOUND))
@@ -1057,6 +1136,8 @@ export class AdminService {
           action: 'ADMIN_PASSWORD_RESET',
           target: id,
           detail: { username: admin.username },
+          ip: auditMeta?.ip,
+          userAgent: auditMeta?.userAgent,
         },
         tx,
       )
@@ -1069,6 +1150,7 @@ export class AdminService {
     adminId: string,
     oldPassword: string,
     newPassword: string,
+    auditMeta?: AuditMeta,
   ) {
     const admin = await this.prisma.adminUser.findUnique({ where: { id: adminId } })
     if (!admin) {
@@ -1096,6 +1178,8 @@ export class AdminService {
           action: 'ADMIN_PASSWORD_CHANGE',
           target: adminId,
           detail: { username: admin.username },
+          ip: auditMeta?.ip,
+          userAgent: auditMeta?.userAgent,
         },
         tx,
       )
@@ -1120,26 +1204,16 @@ export class AdminService {
       throw new ConflictException(kbError(KBErrorCodes.ADMIN_CONFIG_KEY_EXISTS))
     }
 
-    // 业务写与审计日志在同一事务，保证新增配置可追溯
-    return this.prisma.$transaction(async (tx) => {
-      const config = await tx.systemConfig.create({
-        data: { key, value },
-      })
-
-      await this.auditLog.log(
-        {
-          adminId: adminId ?? 'system',
-          action: 'SYSTEM_CONFIG_CREATE',
-          target: key,
-          detail: { value },
-          ip: auditMeta?.ip,
-          userAgent: auditMeta?.userAgent,
-        },
-        tx,
-      )
-
-      return config
-    })
+    // 委托给共享事务模板（mode='create'，审计 detail 只含新值）
+    return this.persistConfigWithAudit(
+      key,
+      value,
+      null,
+      'SYSTEM_CONFIG_CREATE',
+      adminId,
+      auditMeta,
+      'create',
+    )
   }
 
   async updateSystemConfig(key: string, value: string, adminId?: string, auditMeta?: AuditMeta) {
@@ -1148,35 +1222,15 @@ export class AdminService {
       throw new NotFoundException(kbError(KBErrorCodes.ADMIN_CONFIG_KEY_NOT_FOUND))
     }
 
-    const oldValue = existing.value
-
-    // 业务写与审计日志在同一事务，保证配置变更可追溯
-    const config = await this.prisma.$transaction(async (tx) => {
-      const result = await tx.systemConfig.update({
-        where: { key },
-        data: { value },
-      })
-
-      await this.auditLog.log(
-        {
-          adminId: adminId ?? 'system',
-          action: 'SYSTEM_CONFIG_UPDATE',
-          target: key,
-          detail: { old: oldValue, new: value },
-          ip: auditMeta?.ip,
-          userAgent: auditMeta?.userAgent,
-        },
-        tx,
-      )
-
-      return result
-    })
-
-    // 风控规则变更后清空规则缓存（事务外执行，避免 DB 事务持锁过久）
-    if (key.startsWith('risk_rule:')) {
-      this.riskEngine.clearCache()
-    }
-
-    return config
+    // 委托给共享事务模板（mode='update'，审计 detail 含 old+new）
+    return this.persistConfigWithAudit(
+      key,
+      value,
+      existing.value,
+      'SYSTEM_CONFIG_UPDATE',
+      adminId,
+      auditMeta,
+      'update',
+    )
   }
 }

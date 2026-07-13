@@ -44,11 +44,17 @@ export class AdminAuthController {
   changePassword(
     @Body() dto: ChangeAdminPasswordDto,
     @AdminCurrentUser() admin: AdminCurrentUserType,
+    @Req() req: Request,
   ) {
+    const userAgent = req.headers['user-agent']
     return this.adminService.changeAdminPassword(
       admin.sub,
       dto.oldPassword,
       dto.newPassword,
+      {
+        ip: req.ip,
+        userAgent: Array.isArray(userAgent) ? userAgent[0] : userAgent,
+      },
     )
   }
 }
