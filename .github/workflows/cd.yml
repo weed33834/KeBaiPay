@@ -41,6 +41,8 @@ jobs:
         run: npm ci
 
       - name: Generate Prisma Client
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/temp?schema=public"
         run: npx prisma generate
 
       - name: Type check
