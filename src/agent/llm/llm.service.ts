@@ -123,7 +123,9 @@ export class LlmService {
       apiKey: this.config.apiKey,
       baseURL: this.config.baseUrl,
     })
-    const model = openaiClient(this.config.model)
+    // 显式用 .chat() 走 Chat Completions API（兼容 OpenAI 兼容网关如 hcnsec.cn / DeepSeek / Moonshot / 通义）
+    // 默认 .responses() 走 OpenAI Responses API，多数第三方网关不完全兼容
+    const model = openaiClient.chat(this.config.model)
 
     // 把 LlmTool 转换为 Vercel AI SDK 的 tool() 格式
     const toolsObj: Record<string, any> = {}
