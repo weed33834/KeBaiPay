@@ -17,6 +17,17 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # 所有步骤共享的环境变量（Prisma 7 的 prisma.config.js 用 env() 强校验，generate 阶段也需要 DATABASE_URL）
+    env:
+      NODE_ENV: test
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/test?schema=public"
+      REDIS_URL: "redis://localhost:6379"
+      JWT_USER_SECRET: "ci-test-secret-user-32chars-padding"
+      JWT_ADMIN_SECRET: "ci-test-secret-admin-32chars-padding"
+      JWT_AGENT_SECRET: "ci-test-secret-agent-32chars-padding"
+      ADMIN_DEFAULT_PASSWORD: "CiTest2026"
+      ENCRYPTION_KEY: "ci-test-encryption-key-32-chars-ok"
+      MOCK_CHANNEL_SECRET: "ci-test-mock-secret"
     steps:
       - uses: actions/checkout@v4
 
@@ -37,13 +48,3 @@ jobs:
 
       - name: Run unit tests
         run: npm test -- --passWithNoTests
-        env:
-          NODE_ENV: test
-          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/test?schema=public"
-          REDIS_URL: "redis://localhost:6379"
-          JWT_USER_SECRET: "ci-test-secret-user-32chars-padding"
-          JWT_ADMIN_SECRET: "ci-test-secret-admin-32chars-padding"
-          JWT_AGENT_SECRET: "ci-test-secret-agent-32chars-padding"
-          ADMIN_DEFAULT_PASSWORD: "CiTest2026"
-          ENCRYPTION_KEY: "ci-test-encryption-key-32-chars-ok"
-          MOCK_CHANNEL_SECRET: "ci-test-mock-secret"
