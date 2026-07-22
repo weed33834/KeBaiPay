@@ -57,7 +57,7 @@
 | 单元测试 | **1023** | 覆盖所有 Service 与 Controller |
 | E2E 测试 | **39（Jest）+ 1789 行 Python 脚本** | `test/` 目录 4 个 Jest 测试套件（39 用例）+ `e2e_check.py` Python HTTP 测试脚本 |
 | 业务模块数 | **36** | `src/` 下 36 个 NestJS 模块（含 v2.1.0 新增 AgentModule） |
-| 数据库迁移 | 23 个 | `prisma/migrations/` 下 |
+| 数据库迁移 | 20 个 | `prisma/migrations/` 下 |
 
 ### 1.4 项目定位
 
