@@ -16,6 +16,7 @@ import { MerchantsService } from './merchants.service'
 import { RegisterMerchantDto } from './dto/register-merchant.dto'
 import { UpdateMyMerchantDto } from './dto/update-my-merchant.dto'
 import { CreateMerchantAppDto } from './dto/create-merchant-app.dto'
+import { UpdateMerchantAppDto } from './dto/update-merchant-app.dto'
 import { CreateMerchantQrCodeDto } from './dto/create-merchant-qr-code.dto'
 
 @ApiTags('商户')
@@ -65,6 +66,19 @@ export class MerchantsController {
   @ApiResponse({ status: 200, description: '返回应用列表' })
   listApps(@CurrentUser() user: CurrentUserType) {
     return this.merchantsService.listApps(user.id)
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('apps/:appId')
+  @ApiOperation({ summary: '更新商户应用设置', description: '可修改应用名称、回调地址' })
+  @ApiResponse({ status: 200, description: '更新成功' })
+  @ApiResponse({ status: 400, description: 'KB309 无变更 / KB225 应用名称不能为空' })
+  updateApp(
+    @CurrentUser() user: CurrentUserType,
+    @Param('appId') appId: string,
+    @Body() dto: UpdateMerchantAppDto,
+  ) {
+    return this.merchantsService.updateApp(user.id, appId, dto)
   }
 
   @UseGuards(JwtAuthGuard)

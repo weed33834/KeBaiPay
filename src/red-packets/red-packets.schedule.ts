@@ -25,7 +25,7 @@ export class RedPacketsSchedule {
       const now = new Date()
       const pendingPackets = await this.prisma.redPacket.findMany({
         where: {
-          status: RedPacketStatus.PENDING,
+          status: { in: [RedPacketStatus.PENDING, RedPacketStatus.PARTIALLY_RECEIVED] },
           expiresAt: { lt: now },
         },
       })

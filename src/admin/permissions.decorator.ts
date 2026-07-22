@@ -5,6 +5,7 @@ export type Permission =
   | 'account:adjust'
   | 'withdrawal:audit'
   | 'reconciliation:run'
+  | 'reconciliation:diff:handle'
   | 'finance:view'
   | 'identity:audit'
   | 'merchant:audit'
@@ -28,6 +29,7 @@ export const ROLE_PERMISSIONS: Record<AdminRole, Permission[] | '*'> = {
     'account:adjust',
     'withdrawal:audit',
     'reconciliation:run',
+    'reconciliation:diff:handle',
     'finance:view',
     'admin:view',
   ],

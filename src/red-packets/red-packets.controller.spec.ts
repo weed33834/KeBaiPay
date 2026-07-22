@@ -46,16 +46,22 @@ describe('RedPacketsController', () => {
 
   it('receive 透传 user.id、packetNo、idempotencyKey 到 service', async () => {
     const user = { id: 'u1' }
-    await controller.receive(user as any, 'RP001', 'idem-1')
+    await controller.receive(user as any, 'RP001', { password: 'abc' }, 'idem-1')
 
-    expect(mockService.receive).toHaveBeenCalledWith('u1', 'RP001', 'idem-1')
+    expect(mockService.receive).toHaveBeenCalledWith('u1', 'RP001', {
+      idempotencyKey: 'idem-1',
+      password: 'abc',
+    })
   })
 
   it('receive idempotencyKey 缺省时透传 undefined', async () => {
     const user = { id: 'u1' }
-    await controller.receive(user as any, 'RP001', undefined)
+    await controller.receive(user as any, 'RP001', {}, undefined)
 
-    expect(mockService.receive).toHaveBeenCalledWith('u1', 'RP001', undefined)
+    expect(mockService.receive).toHaveBeenCalledWith('u1', 'RP001', {
+      idempotencyKey: undefined,
+      password: undefined,
+    })
   })
 
   it('findSent 透传 user.id 到 service', async () => {

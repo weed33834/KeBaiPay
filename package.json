@@ -1,10 +1,10 @@
 {
-  "name": "kebaipay-mvp",
-  "version": "1.0.0",
-  "description": "科佰支付 KeBaiPay - 钱包与商户支付服务",
+  "name": "kebaipay",
+  "version": "2.0.0",
+  "description": "KeBaiPay 科佰支付 - 个人钱包 + 商户收款 + 开放 API + 多平台对账聚合平台（NestJS 11 + Prisma 7 + PostgreSQL 16 + Redis 7）",
   "author": "科佰网络技术有限公司",
-  "private": true,
   "license": "ISC",
+  "private": true,
   "engines": {
     "node": ">=20.0.0"
   },
@@ -26,7 +26,10 @@
     "migrate:reset": "prisma migrate reset",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:e2e": "jest --config ./test/jest-e2e.config.js"
+    "test:cov": "jest --coverage",
+    "test:e2e": "jest --config ./test/jest-e2e.config.js",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "clean": "rm -rf dist node_modules/.cache"
   },
   "dependencies": {
     "@nestjs-modules/mailer": "^2.3.7",
@@ -94,5 +97,23 @@
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
+  },
+  "keywords": [
+    "nestjs",
+    "payment",
+    "wallet",
+    "prisma",
+    "postgresql",
+    "redis",
+    "wechat-pay",
+    "alipay",
+    "open-api",
+    "reconciliation",
+    "fintech"
+  ],
+  "homepage": "https://github.com/kebaipay/kebaipay",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kebaipay/kebaipay.git"
   }
 }

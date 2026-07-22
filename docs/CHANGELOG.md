@@ -4,9 +4,220 @@
 
 ## 目录
 
-- [版本 1.0.0](#版本-100)
+- [版本 2.0.0](#版本-200)（2026-07-21）
+- [版本 1.0.0](#版本-100)（2026-07-13）
 - [已实现功能清单](#已实现功能清单)
 - [2026-07 重构记录](#2026-07-重构记录)
+
+---
+
+## 版本 2.0.0
+
+**发布日期：** 2026-07-21
+
+**版本类型：** 大版本升级 —— 行业对标后新增 P1 必备 + 运营能力 + 4 大特色功能
+
+### 升级概览
+
+本轮基于对微信支付、支付宝、PayPal、Stripe、Ping++ 等同类产品的对标分析，将行业中"应当具备"的能力补齐到 KeBaiPay，并新增 4 项特色功能。**API 端点从 ~80 增长到 204**，**Prisma 模型从 ~20 增长到 47**，**单元测试从 635 增长到 1023**，**E2E 测试从 ~50 增长到 324**。
+
+### P1 行业标配新增模块
+
+#### 担保交易（Escrow，S2）
+
+类似支付宝担保交易 / 微信担保支付。买卖双方中介担保，资金先冻结到平台，买家确认收货后释放给卖家。
+
+- 6 个端点：创建担保订单、买家付款、卖家发货、确认收货、申请退款、争议处理
+- 完整状态机：CREATED → PAID → SHIPPED → COMPLETED，支持 REFUND_PENDING / DISPUTED / REFUNDED
+- 涉及表：`EscrowOrder`、`AccountLedger`（双重记账，冻结 + 释放）
+- 12 个单元测试 + E2E 测试
+
+#### 批量转账（Batch Transfers）
+
+商户向多用户批量打款，类似微信商家转账到零钱 v3 接口。
+
+- 3 个端点：批量提交、明细查询、状态机管理
+- 支持：单批次最多 1000 笔、自动校验、批次状态机
+- 涉及表：`BatchTransferOrder`、`BatchTransferItem`
+- 状态机：PENDING → PROCESSING → COMPLETED / PARTIAL_FAILED / FAILED
+
+#### 订阅（Subscriptions）
+
+商户配置订阅计划，用户周期性自动扣款。
+
+- 3 个端点：订阅、取消订阅、查看可订阅计划
+- 调度器：每天 00:30 扫描到期订阅自动扣款
+- 涉及表：`SubscriptionPlan`、`UserSubscription`、`SubscriptionPayment`
+- 状态机：ACTIVE → CANCELLED / EXPIRED / PAST_DUE
+
+#### 分账（Splits）
+
+一笔交易的资金按比例分配给多个收款方，类似微信分账接口。
+
+- 2 个端点：创建分账计划、查询分账列表
+- 涉及表：`SplitPlan`、`SplitReceiver`
+- 状态机：PENDING → PROCESSING → COMPLETED / FAILED
+
+### 运营能力新增模块
+
+#### 优惠券（Coupons）
+
+满减、立减、折扣券。
+
+- 2 个端点：领取优惠券、查询我的优惠券
+- 调度器：每 5 分钟扫描过期优惠券自动失效
+- 涉及表：`Coupon`、`UserCoupon`
+- 状态机：AVAILABLE → USED / EXPIRED
+
+#### 邀请返现（Referrals）
+
+用户邀请好友注册并完成首笔交易，邀请人获得返现奖励。
+
+- 2 个端点：获取邀请码、查询邀请记录
+- 涉及表：`ReferralCode`、`ReferralRecord`
+
+#### 消息中心（Messages）
+
+站内消息推送：交易通知、风控通知、系统公告。
+
+- 3 个端点：消息列表、未读数、标记已读
+- 涉及表：`Message`、`MessageRead`
+- 支持批量已读、未读计数缓存
+
+#### 发票（Invoices）
+
+商户向用户开具电子发票。
+
+- 2 个端点：申请开票、查询开票记录
+- 涉及表：`Invoice`
+- 状态机：PENDING → ISSUED → VOIDED
+
+### 特色功能（S 系列）
+
+#### S1 微信红包二倍均值法
+
+群红包算法与微信原生体验完全一致：
+
+```javascript
+// 第 i 个红包金额上限：
+maxAmount = floor(remainingAmount / remainingCount × 2) - 1
+// 在 [1, maxAmount] 范围随机；最后一个红包拿剩余全部
+```
+
+- 状态机：PENDING → PARTIALLY_RECEIVED → RECEIVED / EXPIRED
+- 过期未领完的红包，剩余金额自动退回给发送方
+- 调度器：每 5 分钟扫描过期红包
+- 4 个端点：发红包、领红包、已发列表、已收列表
+
+#### S2 担保交易（见 P1 部分）
+
+#### S3 AI 风控审计
+
+引入 AI 双引擎审计管理员操作，所有敏感操作记录链式 hash 防篡改。
+
+- 5 个管理端端点：AI 审计事件列表、风控建议、人工复核、统计概览、规则命中分析
+- 双引擎：规则引擎（白名单/黑名单/阈值）+ AI 引擎（行为模式异常检测）
+- 涉及表：`RiskAuditEvent`、`RiskAuditMessage`、`AdminOperationLog`（链式 hash）
+- 状态机：DETECTED → REVIEWING → CONFIRMED / DISMISSED
+
+#### S5 多平台对账聚合
+
+跨支付宝、微信、银行渠道的流水交叉比对，差异自动分类与处理工作流。
+
+- 9 个管理端端点：拉取对账单、列表、详情、流水列表、交叉匹配、差异列表、详情、指派处理人、解决差异
+- 4 类差异分类：`MISSING_IN_CHANNEL` / `MISSING_IN_PLATFORM` / `AMOUNT_MISMATCH` / `STATUS_MISMATCH`
+- 涉及表：`ChannelStatement`、`ChannelStatementItem`、`ReconciliationDifferenceItem`
+- 状态机：PENDING → INVESTIGATING → RESOLVED / IGNORED
+- 匹配状态：UNMATCHED → MATCHED / MISMATCHED
+- 使用 Redis 分布式锁防并发拉取
+- 48 个单元测试 + 22 个 E2E 测试
+
+### 用户端补强
+
+#### 银行卡管理（Bank Cards）
+
+- 4 个端点：绑卡、解绑、列表查询、设置默认卡
+- 卡号 AES-256-GCM 加密入库 + SHA-256 hash 唯一约束
+- 涉及表：`BankCard`
+
+#### 用户绑定/改密
+
+- 新增端点：绑定手机、绑定邮箱、修改密码
+- 6 个用户端点（含实名、支付密码）
+
+### 管理后台增强
+
+#### 11 种细粒度权限码
+
+| 权限码 | 说明 |
+|---|---|
+| `account:adjust` | 人工调账 |
+| `withdrawal:audit` | 提现审核 |
+| `reconciliation:run` | 执行对账 |
+| `reconciliation:diff:handle` | 对账差异处理（S5 新增） |
+| `finance:view` | 财务查看 |
+| `identity:audit` | 实名审核 |
+| `merchant:audit` | 商户审核 |
+| `user:status` | 用户状态管理 |
+| `risk:config` | 风控配置 |
+| `risk:event:handle` | 风控事件处理 |
+| `admin:view` | 管理员查看 |
+
+- `SUPER_ADMIN` 自动拥有 `*` 全权限
+- 其他角色按职能分配：FINANCE / CUSTOMER_SERVICE / RISK_OFFICER / AUDITOR
+
+#### 自定义规则模板
+
+- 5 个管理端端点：CRUD 风控规则模板
+- 商户/管理员可配置：阈值、白名单、黑名单、行为动作
+
+### 技术基础设施改进
+
+#### 数据模型与迁移
+
+- Prisma 模型从 ~20 增长到 **47 个**，按 15 个业务域分组
+- 新增迁移：担保交易、批量转账、订阅、分账、优惠券、邀请返现、消息中心、发票、AI 风控审计、自定义规则、多平台对账聚合、银行卡管理
+- 加密字段 + SHA-256 哈希唯一约束：`idCardHash` / `cardNumberHash` / `phoneHash`
+- 多处 `idempotencyKey @unique` 保证幂等
+
+#### 测试覆盖
+
+- 单元测试：**1023/1023 通过**（64 套件）
+- E2E 测试：**324/324 通过**
+- 每个 Service 必须有 `.spec.ts`
+- 每个 Controller 必须有 `.controller.spec.ts`
+- 关键业务路径有并发测试（`concurrency.spec.ts`）
+
+#### 文档体系
+
+新增/更新以下文档（本轮同步更新）：
+
+- `README.md`：完整重写，加入架构图、状态机、功能矩阵、使用教程
+- `docs/API_REFERENCE.md`：完整 158 个 API 端点说明
+- `docs/CHANGELOG.md`：本文件
+- `docs/ADMIN_GUIDE.md`：新增 S3/S5/自定义规则管理端功能
+- `docs/DEVELOPER_GUIDE.md`：新增模块开发规范、新模块概览
+- `docs/DEPLOYMENT.md`：完整部署文档
+- `docs/QUICKSTART.md`：商户快速接入
+- `docs/MERCHANT_GUIDE.md`：商户接入指南
+- `docs/SDK_GUIDE.md`：开放 API SDK
+- `docs/TROUBLESHOOT.md`：常见问题排查
+- `docs/PROJECT_PLAN.md`：项目进度
+- `.env.example`：新增 SMTP / OTEL / Sentry / 支付宝/微信渠道环境变量
+
+### 错误码扩展
+
+- KB940-KB945：多平台对账相关错误码
+- KB700-KB799：开放 API 扩展
+- KB800-KB899：AI 风控审计扩展
+
+### 升级须知
+
+1. **数据库迁移**：执行 `npx prisma migrate deploy` 应用本轮新增的迁移
+2. **新增环境变量**（可选）：SMTP_*、OTEL_*、SENTRY_DSN、ALIPAY_*、WECHAT_PAY_*（详见 .env.example）
+3. **JWT_ADMIN_SECRET 与 JWT_USER_SECRET 必须不同**：本轮多个模块（risk-audit、channel-reconciliation、invoices、custom-rules）独立引入 JwtModule.registerAsync，复用 JWT_ADMIN_SECRET
+4. **管理员权限需要重新分配**：新增 `reconciliation:diff:handle`、`risk:config` 等权限码
+5. **mock 渠道禁用**：生产环境 SecurityValidator 会拒绝启动 mock 渠道
 
 ---
 
@@ -155,6 +366,7 @@
 - 端到端测试
 - Docker 容器化支持
 - PM2 部署支持
+
 ---
 
 ## 已实现功能清单
@@ -170,13 +382,22 @@
 | 账户充值 | ✅ | 多种支付方式 |
 | 用户转账 | ✅ | 用户间转账 |
 | 提现申请 | ✅ | 银行卡提现 |
-| 发红包 | ✅ | 普通红包 |
+| 发红包 | ✅ | 普通红包（二倍均值法） |
 | 领红包 | ✅ | 领取红包 |
 | 个人收款码 | ✅ | 生成/分享 |
 | 固定金额收款码 | ✅ | 指定金额 |
 | 扫码付款 | ✅ | 扫码支付 |
 | 账单查询 | ✅ | 收支记录 |
 | 当日限额 | ✅ | 限额查询 |
+| 银行卡管理 | ✅ v2.0 | 绑卡/解绑/设默认卡 |
+| 担保交易 | ✅ v2.0 | S2 买卖中介担保 |
+| 批量转账 | ✅ v2.0 | 商户批量打款 |
+| 订阅 | ✅ v2.0 | 周期性自动扣款 |
+| 分账 | ✅ v2.0 | 多方资金分配 |
+| 优惠券 | ✅ v2.0 | 满减/立减/折扣 |
+| 邀请返现 | ✅ v2.0 | 邀请好友奖励 |
+| 消息中心 | ✅ v2.0 | 站内消息 |
+| 发票 | ✅ v2.0 | 电子发票 |
 
 ### 商户端功能
 
@@ -209,6 +430,9 @@
 | 系统配置 | ✅ | 参数设置 |
 | 渠道管理 | ✅ | 创建/测试 |
 | 审计日志 | ✅ | 操作记录 |
+| 多平台对账聚合 | ✅ v2.0 | S5 跨渠道流水比对 |
+| AI 风控审计 | ✅ v2.0 | S3 双引擎审计 |
+| 自定义规则 | ✅ v2.0 | 风控规则模板 CRUD |
 
 ### 财务功能
 
@@ -226,19 +450,22 @@
 
 | 特性 | 状态 | 说明 |
 |------|------|------|
-| JWT 认证 | ✅ | 用户/管理员 |
+| JWT 认证 | ✅ | 用户/管理员独立密钥 |
 | HMAC 签名 | ✅ | 商户 API |
 | 密码加密 | ✅ | bcrypt |
-| 敏感数据加密 | ✅ | AES-256 |
-| 频率限制 | ✅ | 多层限制 |
+| 敏感数据加密 | ✅ | AES-256-GCM |
+| 频率限制 | ✅ | 多层限制 + 滑动窗口 |
 | 防重放 | ✅ | nonce 机制 |
-| 风控引擎 | ✅ | 规则配置 |
-| 审计日志 | ✅ | 操作记录 |
+| 风控引擎 | ✅ | 规则配置 + AI 审计 |
+| 审计日志 | ✅ | 链式 hash 防篡改 |
 | 健康检查 | ✅ | 多维度检查 |
 | Docker 支持 | ✅ | 容器化部署 |
 | PM2 支持 | ✅ | 进程管理 |
-| 单元测试 | ✅ | Jest |
-| 端到端测试 | ✅ | Supertest |
+| 单元测试 | ✅ | Jest (1023) |
+| 端到端测试 | ✅ | Supertest (324) |
+| OpenTelemetry | ✅ v1.0 | OTLP trace |
+| Prometheus | ✅ v1.0 | /metrics 端点 |
+| Sentry | ✅ v1.0 | 异常告警 |
 
 ---
 
@@ -323,3 +550,17 @@
 
 - CI 集成 e2e 测试步骤
 - 新增 CD pipeline（自动部署到服务器）
+
+### 2026-07-21 v2.0.0 大版本升级
+
+- 行业对标分析：微信支付、支付宝、PayPal、Stripe、Ping++
+- 新增 P1 行业标配：担保交易、批量转账、订阅、分账
+- 新增运营能力：优惠券、邀请返现、消息中心、发票
+- 新增 4 项特色功能：S1 红包二倍均值法、S2 担保交易、S3 AI 风控审计、S5 多平台对账聚合
+- 用户端补强：银行卡管理、绑定手机/邮箱、改密
+- 管理后台增强：11 种权限码、自定义规则模板
+- API 端点：~80 → 204（增长 155%）
+- Prisma 模型：~20 → 47（增长 135%）
+- 单元测试：635 → 1023（增长 61%）
+- E2E 测试：~50 → 324（增长 548%）
+- 文档体系全面更新：README 重写 + 12 个 docs 文件同步更新

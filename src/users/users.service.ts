@@ -1,8 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
+import { Injectable, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { CryptoService } from '../crypto/crypto.service'
+import { SmsService } from '../sms/sms.service'
 import { Prisma } from '@prisma/client'
+import { createHash } from 'crypto'
 import { RealNameStatus } from '../common/enums'
 import { fenToYuan } from '../common/helpers'
 import { KBErrorCodes, kbError } from '../common/error-codes'
@@ -19,6 +21,7 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly crypto: CryptoService,
+    private readonly smsService: SmsService,
   ) {}
 
   // Redis 不可用时降级到进程内缓存；生产环境务必配置 Redis
@@ -144,6 +147,18 @@ export class UsersService {
 
     // 加密身份证号后存储
     const encryptedIdCard = this.crypto.encrypt(dto.idCard)
+    // 明文 SHA-256 哈希用于唯一约束：AES-GCM 加密带 IV 每次密文不同，
+    // 仅靠 id_card @unique 无法防止同一身份证被多用户提交
+    const idCardHash = createHash('sha256').update(dto.idCard).digest('hex')
+
+    // 提交前先校验身份证唯一性：DB 唯一约束兜底，但提前查表能给出更友好的错误码
+    const existing = await this.prisma.identityVerification.findFirst({
+      where: { idCardHash, userId: { not: userId } },
+      select: { id: true },
+    })
+    if (existing) {
+      throw new BadRequestException(kbError(KBErrorCodes.IDENTITY_IDCARD_USED))
+    }
 
     // 提交人工审核：状态置 PENDING，不直接通过
     // payPasswordHash 暂存到 identityVerification，不写入 user 表
@@ -154,12 +169,14 @@ export class UsersService {
           userId,
           realName: dto.realName,
           idCard: encryptedIdCard,
+          idCardHash,
           status: RealNameStatus.PENDING,
           pendingPayPasswordHash: payPasswordHash,
         },
         update: {
           realName: dto.realName,
           idCard: encryptedIdCard,
+          idCardHash,
           status: RealNameStatus.PENDING,
           pendingPayPasswordHash: payPasswordHash,
         },
@@ -342,5 +359,115 @@ export class UsersService {
     if (updated.count === 0) {
       throw new BadRequestException(kbError(KBErrorCodes.DAILY_LIMIT_EXCEEDED))
     }
+  }
+
+  /** 修改登录密码 */
+  async changeLoginPassword(userId: string, oldPassword: string, newPassword: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } })
+    if (!user) throw new NotFoundException(kbError(KBErrorCodes.USER_NOT_FOUND))
+
+    const bcrypt = await import('bcrypt')
+    const ok = await bcrypt.compare(oldPassword, user.loginPassword)
+    if (!ok) {
+      throw new UnauthorizedException(kbError(KBErrorCodes.LOGIN_PASSWORD_INCORRECT))
+    }
+    if (oldPassword === newPassword) {
+      throw new BadRequestException('新密码不能与原密码相同')
+    }
+    const newHash = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS)
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { loginPassword: newHash },
+    })
+    return { success: true }
+  }
+
+  /** 更新用户基础资料：昵称、头像、邮箱（仅基础更新，邮箱绑定走 bind-email 走验证码流程） */
+  async updateProfile(userId: string, dto: { nickname?: string; avatar?: string; email?: string }) {
+    const data: { nickname?: string; avatar?: string; email?: string } = {}
+    if (dto.nickname !== undefined) data.nickname = dto.nickname
+    if (dto.avatar !== undefined) data.avatar = dto.avatar
+    if (dto.email !== undefined) {
+      // 改邮箱前先校验是否被其他账号占用
+      const existing = await this.prisma.user.findUnique({ where: { email: dto.email } })
+      if (existing && existing.id !== userId) {
+        throw new BadRequestException(kbError(KBErrorCodes.EMAIL_ALREADY_BOUND))
+      }
+      data.email = dto.email
+    }
+    if (Object.keys(data).length === 0) {
+      throw new BadRequestException('至少修改一个字段')
+    }
+    await this.prisma.user.update({ where: { id: userId }, data })
+    return this.getSafeProfile(userId)
+  }
+
+  /**
+   * 绑定/换绑手机号
+   * 校验短信验证码（scene=bind）后更新 user.phone；
+   * 同一手机号只能被一个账号绑定（@unique 约束保证）
+   */
+  async bindPhone(userId: string, phone: string, code: string) {
+    const verifyResult = await this.smsService.verifyCode(phone, code, 'bind')
+    if (!verifyResult.valid) {
+      throw new BadRequestException(kbError(KBErrorCodes.SMS_CODE_INVALID))
+    }
+    // 检查手机号是否已被其他账号占用
+    const existing = await this.prisma.user.findUnique({ where: { phone } })
+    if (existing && existing.id !== userId) {
+      throw new BadRequestException(kbError(KBErrorCodes.PHONE_ALREADY_BOUND))
+    }
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { phone },
+    })
+    return { success: true }
+  }
+
+  /**
+   * 绑定/换绑邮箱
+   * TODO: 项目当前仅有短信通道，邮箱验证码暂通过短信发到用户已绑定的手机号；
+   * 后续接入邮件服务时，把这里的校验改为 verifyEmailCode(email, code)
+   */
+  async bindEmail(userId: string, email: string, code: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } })
+    if (!user) throw new NotFoundException(kbError(KBErrorCodes.USER_NOT_FOUND))
+    if (!user.phone) {
+      throw new BadRequestException('请先绑定手机号')
+    }
+    // 暂时复用短信验证码：邮箱验证码会以短信形式发到用户已绑手机号
+    const verifyResult = await this.smsService.verifyCode(user.phone, code, 'bind')
+    if (!verifyResult.valid) {
+      throw new BadRequestException(kbError(KBErrorCodes.SMS_CODE_INVALID))
+    }
+    // 检查邮箱是否已被其他账号占用
+    const existing = await this.prisma.user.findUnique({ where: { email } })
+    if (existing && existing.id !== userId) {
+      throw new BadRequestException(kbError(KBErrorCodes.EMAIL_ALREADY_BOUND))
+    }
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { email },
+    })
+    return { success: true }
+  }
+
+  /** 查询当前用户的登录日志（最近 30 天，最多 100 条） */
+  async getLoginLogs(userId: string) {
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    const logs = await this.prisma.loginLog.findMany({
+      where: { userId, createdAt: { gte: since } },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      select: {
+        id: true,
+        ip: true,
+        userAgent: true,
+        success: true,
+        reason: true,
+        createdAt: true,
+      },
+    })
+    return logs
   }
 }

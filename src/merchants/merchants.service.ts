@@ -332,6 +332,42 @@ export class MerchantsService {
     }
   }
 
+  /** 更新商户应用设置（名称、回调地址） */
+  async updateApp(
+    userId: string,
+    appId: string,
+    dto: { name?: string; callbackUrl?: string },
+  ) {
+    const merchant = await this.prisma.merchant.findUnique({
+      where: { userId },
+    })
+    if (!merchant) throw new NotFoundException(kbError(KBErrorCodes.MERCHANT_INFO_NOT_FOUND))
+
+    const app = await this.prisma.merchantApp.findFirst({
+      where: { appId, merchantId: merchant.id },
+    })
+    if (!app) throw new NotFoundException(kbError(KBErrorCodes.MERCHANT_APP_NOT_FOUND))
+
+    if (dto.name === undefined && dto.callbackUrl === undefined) {
+      throw new BadRequestException(kbError(KBErrorCodes.MERCHANT_CONFIG_NO_CHANGE))
+    }
+    if (dto.name !== undefined && !dto.name.trim()) {
+      throw new BadRequestException(kbError(KBErrorCodes.MERCHANT_APP_NAME_REQUIRED))
+    }
+
+    const data: { name?: string; callbackUrl?: string | null } = {}
+    if (dto.name !== undefined) data.name = dto.name.trim()
+    // 前端允许传 callbackUrl=undefined（清空）或字符串
+    if (dto.callbackUrl !== undefined) {
+      data.callbackUrl = dto.callbackUrl || null
+    }
+
+    return this.prisma.merchantApp.update({
+      where: { id: app.id },
+      data,
+    })
+  }
+
   // 商户生成固定金额收款码
   async createQrCode(
     userId: string,

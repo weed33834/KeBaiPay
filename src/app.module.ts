@@ -17,6 +17,18 @@ import { QrCodesModule } from './qr-codes/qr-codes.module'
 import { MerchantsModule } from './merchants/merchants.module'
 import { PrismaModule } from './prisma/prisma.module'
 import { CashierModule } from './cashier/cashier.module'
+import { BankCardsModule } from './bank-cards/bank-cards.module'
+import { EscrowModule } from './escrow/escrow.module'
+import { BatchTransfersModule } from './batch-transfers/batch-transfers.module'
+import { SubscriptionsModule } from './subscriptions/subscriptions.module'
+import { SplitsModule } from './splits/splits.module'
+import { CouponsModule } from './coupons/coupons.module'
+import { ReferralsModule } from './referrals/referrals.module'
+import { MessagesModule } from './messages/messages.module'
+import { InvoicesModule } from './invoices/invoices.module'
+import { RiskAuditModule } from './risk-audit/risk-audit.module'
+import { CustomRulesModule } from './custom-rules/custom-rules.module'
+import { ChannelReconciliationModule } from './channel-reconciliation/channel-reconciliation.module'
 import { OpenApiModule } from './open-api/open-api.module'
 import { AdminModule } from './admin/admin.module'
 import { FinanceModule } from './finance/finance.module'
@@ -77,6 +89,18 @@ import { validateEnv } from './common/env-validation'
     QrCodesModule,
     MerchantsModule,
     CashierModule,
+    BankCardsModule,
+    EscrowModule,
+    BatchTransfersModule,
+    SubscriptionsModule,
+    SplitsModule,
+    CouponsModule,
+    ReferralsModule,
+    MessagesModule,
+    InvoicesModule,
+    RiskAuditModule,
+    CustomRulesModule,
+    ChannelReconciliationModule,
     OpenApiModule,
     AdminModule,
     FinanceModule,

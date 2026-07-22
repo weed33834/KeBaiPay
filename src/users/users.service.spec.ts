@@ -1,9 +1,11 @@
 import { Test } from '@nestjs/testing'
-import { BadRequestException, NotFoundException } from '@nestjs/common'
+import { BadRequestException, NotFoundException, UnauthorizedException } from '@nestjs/common'
+import { createHash } from 'crypto'
 import { UsersService } from './users.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { CryptoService } from '../crypto/crypto.service'
+import { SmsService } from '../sms/sms.service'
 import { RealNameStatus } from '../common/enums'
 import { kbError, KBErrorCodes } from '../common/error-codes'
 
@@ -31,7 +33,7 @@ describe('UsersService', () => {
     prisma = {
       user: { create: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
       account: { create: jest.fn() },
-      identityVerification: { upsert: jest.fn(), findUnique: jest.fn() },
+      identityVerification: { upsert: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) },
       systemConfig: { findUnique: jest.fn() },
       dailyLimitUsage: { findUnique: jest.fn(), upsert: jest.fn(), updateMany: jest.fn() },
       $transaction: jest.fn(async (ops: unknown[]) => {
@@ -60,12 +62,18 @@ describe('UsersService', () => {
       }),
     } as unknown as CryptoService
 
+    const smsService = {
+      verifyCode: jest.fn().mockResolvedValue({ valid: true }),
+      sendVerificationCode: jest.fn(),
+    } as unknown as SmsService
+
     const module = await Test.createTestingModule({
       providers: [
         UsersService,
         { provide: PrismaService, useValue: prisma },
         { provide: RedisService, useValue: redis },
         { provide: CryptoService, useValue: crypto },
+        { provide: SmsService, useValue: smsService },
       ],
     }).compile()
 
@@ -155,12 +163,15 @@ describe('UsersService', () => {
 
       const result = await service.verifyIdentity('u1', dto)
 
+      // idCardHash = SHA-256(明文 idCard)，用于 DB 唯一约束（AES-GCM 加密带 IV 每次密文不同）
+      const expectedIdCardHash = createHash('sha256').update(dto.idCard).digest('hex')
       expect(prisma.identityVerification.upsert).toHaveBeenCalledWith({
         where: { userId: 'u1' },
         create: {
           userId: 'u1',
           realName: dto.realName,
           idCard: `enc_${dto.idCard}`,
+          idCardHash: expectedIdCardHash,
           status: RealNameStatus.PENDING,
           // 支付密码哈希暂存到 identityVerification，审核通过后才写入 user.payPassword
           pendingPayPasswordHash: 'hashed_123456',
@@ -168,6 +179,7 @@ describe('UsersService', () => {
         update: {
           realName: dto.realName,
           idCard: `enc_${dto.idCard}`,
+          idCardHash: expectedIdCardHash,
           status: RealNameStatus.PENDING,
           pendingPayPasswordHash: 'hashed_123456',
         },

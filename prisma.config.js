@@ -24,4 +24,8 @@ module.exports = defineConfig({
   datasource: {
     url: env('DATABASE_URL'),
   },
+  migrations: {
+    // Prisma 7 已不读 package.json 的 prisma.seed，必须在此配置
+    seed: 'ts-node prisma/seed.ts',
+  },
 })
