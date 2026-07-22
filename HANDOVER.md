@@ -27,8 +27,8 @@
 | 项目名称 | KeBaiPay（科佰支付） |
 | 版本 | 2.1.0 |
 | 定位 | 个人钱包 + 商户收款 + 开放 API + 多平台对账聚合 + AI 智能体层的一体化支付中台 |
-| 代码仓库 | https://github.com/kebaipay/kebaipay |
-| License | ISC © 科佰网络技术有限公司 |
+| 代码仓库 | GitHub（主）：https://github.com/weed33834/KeBaiPay<br>gitcode（镜像）：https://gitcode.com/badhope/KeBaiPay |
+| License | MIT © KeBaiPay Contributors |
 | 运行环境 | Node.js ≥ 20 / PostgreSQL ≥ 16 / Redis ≥ 7 |
 
 ### 1.2 技术栈
@@ -815,9 +815,12 @@ describe('TransfersService 并发安全', () => {
 #### 方式 A：Docker Compose（推荐）
 
 ```bash
-# 1. 拷代码到服务器
-git clone https://github.com/kebaipay/kebaipay.git
-cd kebaipay
+# 1. 拷代码到服务器（任选其一，国内服务器推荐 gitcode 镜像）
+# GitHub（国际）：
+git clone https://github.com/weed33834/KeBaiPay.git
+# gitcode（国内，访问更快）：
+git clone https://gitcode.com/badhope/KeBaiPay.git
+cd KeBaiPay
 
 # 2. 配置环境变量（必须改 6 个 secret）
 cp .env.example .env

@@ -4,12 +4,17 @@
 
 ## 核心贡献者
 
-| GitHub | 角色 | 主要职责 |
+| 平台 | 角色 | 主要职责 |
 |---|---|---|
-| [@weed33834](https://github.com/weed33834) | 项目负责人 / 架构师 | 整体技术架构、资金安全审查、API 契约、风控引擎、AI 智能体设计 |
+| [@weed33834](https://github.com/weed33834)（GitHub） · [@badhope](https://gitcode.com/badhope)（gitcode） | 项目负责人 / 架构师 | 整体技术架构、资金安全审查、API 契约、风控引擎、AI 智能体设计 |
 | [@KEBAI-CN](https://github.com/KEBAI-CN) | 联合开发者 | 功能开发、测试用例、文档维护、前端实现、LLM 接入联调 |
 
-### 仓库
+### 仓库（双平台镜像）
+
+| 平台 | 地址 | 定位 |
+|---|---|---|
+| GitHub | https://github.com/weed33834/KeBaiPay | 主仓库，CI/Issue/PR 主入口 |
+| gitcode | https://gitcode.com/badhope/KeBaiPay | 国内镜像，访问加速 |
 
 ## 角色定义
 

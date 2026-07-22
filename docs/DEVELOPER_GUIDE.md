@@ -37,9 +37,12 @@
 ### 安装与启动
 
 ```bash
-# 1. 克隆项目
-git clone https://github.com/your-org/kebaipay.git
-cd kebaipay
+# 1. 克隆项目（任选其一，国内推荐 gitcode 镜像）
+# GitHub（国际）：
+git clone https://github.com/weed33834/KeBaiPay.git
+# gitcode（国内）：
+git clone https://gitcode.com/badhope/KeBaiPay.git
+cd KeBaiPay
 
 # 2. 安装依赖
 npm install
