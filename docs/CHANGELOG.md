@@ -36,7 +36,7 @@
 
 - 抽象 LlmService：统一 `chat({ messages, tools, systemPrompt, maxSteps })` 接口
 - LLM_PROVIDER=mock 时降级为本地模板引擎（复用 RiskAuditAiEngine 模式）
-- 非 mock 时动态 import Vercel AI SDK v6（`generateText` + `tool()` + `maxSteps`）
+- 非 mock 时动态 import Vercel AI SDK v7（`generateText` + `tool()` + `maxSteps`）
 - SDK 加载失败也降级为 mock，保证无 LLM 环境可用
 - 支持 OpenAI 兼容协议（DeepSeek/OpenAI/Moonshot/通义等）
 
@@ -172,7 +172,7 @@ docker-compose.agent.yml               # n8n + Botpress 独立部署
 
 ### 参考的开源项目
 
-- Vercel AI SDK v6：Agent 循环（generateText + tool() + maxSteps）
+- Vercel AI SDK v7：Agent 循环（generateText + tool() + maxSteps）
 - @modelcontextprotocol/sdk：MCP 协议
 - Stripe/PayPal Agent Toolkit：支付工具封装思路
 - Shopify shop-chat-agent：AI 电商 Agent 蓝本

@@ -44,7 +44,7 @@
 | 认证 | JWT + HMAC-SHA256 | - | 用户/管理员/**Agent** JWT 独立密钥；商户开放 API HMAC 签名 |
 | 加密 | AES-256-GCM | - | 身份证、银行卡等敏感字段加密 |
 | 风控 | 自研规则引擎 + AI 审计 | - | 滑动窗口 Lua + 链式 hash 日志 |
-| **AI Agent** | **Vercel AI SDK v6 + MCP** | **v2.1.0 新增** | **LLM 调用 + 工具循环 + MCP Server，支持 mock 降级** |
+| **AI Agent** | **Vercel AI SDK v7 + MCP** | **v2.1.0 新增** | **LLM 调用 + 工具循环 + MCP Server，支持 mock 降级** |
 | 部署 | Docker Compose / 裸机 | - | PM2 进程管理可选；n8n + Botpress 独立编排（docker-compose.agent.yml） |
 | 监控 | OpenTelemetry + Prometheus + Sentry | - | OTLP trace + metrics 端点 |
 
@@ -55,7 +55,7 @@
 | API 端点数 | **214** | 覆盖用户/商户/管理后台/开放 API/**AI 智能体** 全场景 |
 | Prisma 数据模型 | **52** | 按 15 个业务域 + **1 个 AI 智能体域**分组 |
 | 单元测试 | **1023** | 覆盖所有 Service 与 Controller |
-| E2E 测试 | **355** | 位于 `test/` 目录（含 v2.1.0 新增 31 个 Agent 测试） |
+| E2E 测试 | **39（Jest）+ 1789 行 Python 脚本** | `test/` 目录 4 个 Jest 测试套件（39 用例）+ `e2e_check.py` Python HTTP 测试脚本 |
 | 业务模块数 | **36** | `src/` 下 36 个 NestJS 模块（含 v2.1.0 新增 AgentModule） |
 | 数据库迁移 | 23 个 | `prisma/migrations/` 下 |
 
@@ -768,7 +768,7 @@ E2E 测试位于 `test/` 目录，使用独立 Jest 配置 `test/jest-e2e.config
 npm test                 # 运行所有单元测试（1023 个）
 npm run test:watch       # watch 模式
 npm run test:cov         # 生成覆盖率报告（jest --coverage）
-npm run test:e2e         # 运行 E2E 测试（324 个，jest --config ./test/jest-e2e.config.js）
+npm run test:e2e         # 运行 E2E 测试（39 个，jest --config ./test/jest-e2e.config.js）
 python3 e2e_check.py     # 运行 Python 端到端模拟脚本（需先启动服务）
 ```
 
@@ -1214,7 +1214,7 @@ npm run migrate:reset    # 重置数据库（慎用）
 npm test                 # 1023 个单元测试
 npm run test:watch       # watch 模式
 npm run test:cov         # 覆盖率报告
-npm run test:e2e         # 324 个 E2E 测试
+npm run test:e2e         # 39 个 Jest E2E 测试
 python3 e2e_check.py     # Python E2E 脚本（需先启动服务）
 
 # Docker
