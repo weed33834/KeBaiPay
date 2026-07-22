@@ -2,9 +2,23 @@
 
 # KeBaiPay 科佰支付
 
-**个人钱包 + 商户收款 + 开放 API + 多平台对账聚合 + AI 智能体层的一体化支付平台**
+**开源一体化支付中台 — 个人钱包 + 商户收款 + 开放 API + 多平台对账聚合 + AI 智能体**
 
-🚀 版本 2.1.0 | NestJS 11 + Prisma 7 + PostgreSQL 16 + Redis 7 + Vercel AI SDK v7 + MCP | 214 个 API 端点
+<p>
+  <a href="https://github.com/weed33834/KeBaiPay/actions"><img alt="CI" src="https://github.com/weed33834/KeBaiPay/actions/workflows/ci.yml/badge.svg" /></a>
+  <img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg" />
+  <img alt="Node.js" src="https://img.shields.io/badge/Node.js-%E2%89%A520-green" />
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-6-blue" />
+  <img alt="NestJS" src="https://img.shields.io/badge/NestJS-11-red" />
+  <img alt="Prisma" src="https://img.shields.io/badge/Prisma-7-blueviolet" />
+  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-16-blue" />
+  <img alt="AI SDK" src="https://img.shields.io/badge/AI%20SDK-v7-orange" />
+  <img alt="API Endpoints" src="https://img.shields.io/badge/API-214-brightgreen" />
+  <img alt="Tests" src="https://img.shields.io/badge/tests-1023%20%E2%9C%93-brightgreen" />
+  <img alt="PRs Welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" />
+</p>
+
+🚀 版本 2.1.0 | 214 个 API 端点 | 52 个 Prisma 模型 | 1023 单元测试 + 39 E2E
 
 📡 **双平台镜像同步**：[GitHub（国际）](https://github.com/weed33834/KeBaiPay) · [gitcode（国内）](https://gitcode.com/badhope/KeBaiPay)
 
@@ -12,11 +26,38 @@
 
 </div>
 
+<details>
+<summary><b>🔍 搜索关键词（展开查看）</b></summary>
+
+```
+开源支付系统 | 支付中台 | payment gateway | payment platform | payment processing
+NestJS 支付 | Prisma 支付 | TypeScript 支付 | Node.js 支付
+个人钱包 | 商户收款 | 收银台 | 收款码 | 开放 API | HMAC 签名
+微信支付 | 支付宝 | PayPal | Stripe | Ping++ | 对标参考
+担保交易 | escrow | 分账 | split | 订阅 | subscription | 批量转账
+红包 | red packet | 二倍均值法 | 优惠券 | coupon | 邀请返现 | referral
+对账 | reconciliation | 多平台对账 | 风控 | risk control | 审计 | audit
+AI 智能体 | AI Agent | Vercel AI SDK | MCP | LLM | 大模型
+DeepSeek | ChatGPT | Claude Desktop | Cursor | Trae
+PostgreSQL | Redis | 复式记账 | 分布式锁 | 链式 hash | JWT | AES-256-GCM
+可私有化部署 | self-hosted | 私有化部署 | docker-compose | open source payment
+中国支付 | china payment | 中文支付系统 | 国产支付系统
+```
+
+</details>
+
 ---
 
 ## 一、项目简介
 
-KeBaiPay 是一个面向中小商户、个人钱包场景的完整支付中台方案。系统采用 **复式记账模型**、**Redis 分布式锁防并发**、**Prisma 事务保证 ACID**，并内置风控引擎、对账引擎、AI 风控审计、AI 智能体层等高级特性。
+**KeBaiPay（科佰支付）** 是一个面向中小商户、个人钱包场景的**开源一体化支付中台**，采用 **复式记账模型**、**Redis 分布式锁防并发**、**Prisma 事务保证 ACID**，并内置风控引擎、对账引擎、AI 风控审计、AI 智能体层等高级特性。**对标微信支付 / 支付宝 / PayPal / Stripe / Ping++**，支持私有化部署，让商户完全掌控资金数据与密钥。
+
+### 适用场景
+
+- **中小商户 / 创业团队**：需要一个完整、可私有化部署的支付中台，避免被 SaaS 锁定
+- **支付领域学习者**：参考复式记账、分布式锁、链式 hash 审计、AI Agent 等真实工程实践
+- **AI Agent 开发者**：基于 MCP 协议接入支付能力，构建钱包管家 / 店长助理等智能体
+- **国内开发者**：对标微信支付 / 支付宝业务流程，提供中文文档与 gitcode 国内镜像
 
 ### 核心亮点
 
