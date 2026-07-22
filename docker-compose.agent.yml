@@ -1,0 +1,116 @@
+# ===========================================================================
+# KeBaiPay AI 智能体层外部依赖（v2.1.0 新增）
+#
+# 本文件独立管理 AI 智能体层所需的外部开源服务：
+#   - n8n：工作流引擎，用于自动化流程编排（Sustainable Use License）
+#   - botpress：客服机器人，用于 B 端店长助理对话（MIT）
+#
+# 启动方式（与主 docker-compose.yml 分离，按需启动）：
+#   docker compose -f docker-compose.agent.yml up -d
+#
+# 停止：
+#   docker compose -f docker-compose.agent.yml down
+#
+# 设计原则：
+#   1. 不与主 docker-compose.yml 合并，避免无 Agent 需求的项目被迫拉起服务
+#   2. 共享主项目的 postgres / redis，避免数据孤岛
+#   3. 网络隔离：n8n/botpress 只接入 db-internal，对外端口仅暴露 Web UI
+#
+# 注意：
+#   - 启动前请确保主项目 postgres / redis 已运行
+#   - n8n 首次访问 http://localhost:5678 需创建管理员账号
+#   - botpress 首次访问 http://localhost:3010 需创建管理员账号
+#   - 这些服务会使用主项目的 postgres（共享 db-internal 网络），库名通过 env 区分
+# ===========================================================================
+
+version: '3.8'
+
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: kebaipay-n8n
+    restart: unless-stopped
+    environment:
+      # 使用主项目的 PostgreSQL（共享 db-internal 网络）
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: ${N8N_DB_NAME:-n8n}
+      DB_POSTGRESDB_USER: ${POSTGRES_USER:-postgres}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      # n8n Web UI 端口
+      N8N_PORT: 5678
+      N8N_HOST: 0.0.0.0
+      N8N_PROTOCOL: http
+      # 时区
+      GENERIC_TIMEZONE: Asia/Shanghai
+      TZ: Asia/Shanghai
+      # 是否开启基本认证（生产环境强烈建议开启）
+      N8N_BASIC_AUTH_ACTIVE: ${N8N_BASIC_AUTH_ACTIVE:-true}
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER:-admin}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD:?N8N_BASIC_AUTH_PASSWORD must be set in .env}
+      # webhook 配置
+      WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://localhost:5678/}
+      # 限制可访问的 Node 模块（防 SSRF）
+      NODE_FUNCTION_ALLOW_EXTERNAL: ''
+    ports:
+      - '5678:5678'
+    networks:
+      - db-internal
+      - agent-frontend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- --timeout=3 http://localhost:5678/healthz | grep -q ok']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: '1.0'
+
+  botpress:
+    image: botpress/server:latest
+    container_name: kebaipay-botpress
+    restart: unless-stopped
+    environment:
+      # Botpress 使用内置 SQLite（生产可切到 PostgreSQL）
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${BOTPRESS_DB_NAME:-botpress}?schema=public
+      BP_PORT: 3010
+      BP_HOST: 0.0.0.0
+      BP_PROTOCOL: http
+      TZ: Asia/Shanghai
+      # 外部访问地址
+      EXTERNAL_URL: ${BOTPRESS_EXTERNAL_URL:-http://localhost:3010}
+    ports:
+      - '3010:3010'
+    networks:
+      - db-internal
+      - agent-frontend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- --timeout=3 http://localhost:3010/health > /dev/null || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: '1.5'
+
+networks:
+  # 与主 docker-compose.yml 的 db-internal 共享（external: true 必须由主项目先创建）
+  db-internal:
+    external: true
+    name: kebaipay_db-internal
+  # Agent 服务对外暴露的 Web UI 网络（独立于 frontend）
+  agent-frontend:
+    driver: bridge

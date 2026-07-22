@@ -128,3 +128,40 @@ export const DASHBOARD_MONTH_DAYS = 30
  */
 export const JWT_TOKEN_TYPE_USER = 'user'
 export const JWT_TOKEN_TYPE_ADMIN = 'admin'
+export const JWT_TOKEN_TYPE_AGENT = 'agent'
+
+/**
+ * Agent 场景类型：标识 Agent 用途，决定可用工具集
+ * - wallet：C 端钱包管家（查询账单、转账、发红包等）
+ * - merchant：B 端店长助理（创建订单、对账、退款等）
+ * - risk：A 端风控审计官（事件处置、规则生成、巡检告警）
+ * - support：通用客服坐席
+ */
+export const AGENT_SCENARIOS = ['wallet', 'merchant', 'risk', 'support'] as const
+export type AgentScenario = (typeof AGENT_SCENARIOS)[number]
+
+/**
+ * Agent 操作结果枚举
+ */
+export const AGENT_RESULT_SUCCESS = 'SUCCESS'
+export const AGENT_RESULT_FAILED = 'FAILED'
+export const AGENT_RESULT_PENDING_CONFIRM = 'PENDING_CONFIRM'
+export const AGENT_RESULT_REJECTED = 'REJECTED'
+
+/**
+ * Agent 对话消息角色（OpenAI 风格）
+ */
+export const AGENT_ROLE_USER = 'USER'
+export const AGENT_ROLE_ASSISTANT = 'ASSISTANT'
+export const AGENT_ROLE_TOOL = 'TOOL'
+export const AGENT_ROLE_SYSTEM = 'SYSTEM'
+
+/**
+ * Agent 链式 hash 起始 hash（同 AdminOperationLog 的 GENESIS_HASH）
+ */
+export const AGENT_GENESIS_HASH = '0'.repeat(64)
+
+/**
+ * Agent 咨询锁 ID（用于并发安全写入 AgentOperationLog）
+ */
+export const AGENT_LOG_ADVISORY_LOCK_ID = 8832

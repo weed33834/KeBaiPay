@@ -1,7 +1,7 @@
 # KeBaiPay 项目交接文档
 
 > 本文档面向接手 KeBaiPay 项目维护与扩展的开发团队，涵盖架构、模块、流程、测试、部署、坑点与优化建议。
-> 版本：v2.0.0 | 最后更新：2026-07-21
+> 版本：v2.1.0 | 最后更新：2026-07-22
 
 ## 目录
 
@@ -25,8 +25,8 @@
 | 项 | 值 |
 |---|---|
 | 项目名称 | KeBaiPay（科佰支付） |
-| 版本 | 2.0.0 |
-| 定位 | 个人钱包 + 商户收款 + 开放 API + 多平台对账聚合的一体化支付中台 |
+| 版本 | 2.1.0 |
+| 定位 | 个人钱包 + 商户收款 + 开放 API + 多平台对账聚合 + AI 智能体层的一体化支付中台 |
 | 代码仓库 | https://github.com/kebaipay/kebaipay |
 | License | ISC © 科佰网络技术有限公司 |
 | 运行环境 | Node.js ≥ 20 / PostgreSQL ≥ 16 / Redis ≥ 7 |
@@ -41,22 +41,23 @@
 | ORM | Prisma | 7 | 类型安全 + 迁移机制 + PostgreSQL 适配 |
 | 数据库 | PostgreSQL | 16/17 | 主库，不支持 SQLite（v2 已移除 SQLite 支持） |
 | 缓存 | Redis | 7 | 分布式锁 + 滑动窗口限流 + nonce 防重放 |
-| 认证 | JWT + HMAC-SHA256 | - | 用户/管理员 JWT 独立密钥；商户开放 API HMAC 签名 |
+| 认证 | JWT + HMAC-SHA256 | - | 用户/管理员/**Agent** JWT 独立密钥；商户开放 API HMAC 签名 |
 | 加密 | AES-256-GCM | - | 身份证、银行卡等敏感字段加密 |
 | 风控 | 自研规则引擎 + AI 审计 | - | 滑动窗口 Lua + 链式 hash 日志 |
-| 部署 | Docker Compose / 裸机 | - | PM2 进程管理可选 |
+| **AI Agent** | **Vercel AI SDK v6 + MCP** | **v2.1.0 新增** | **LLM 调用 + 工具循环 + MCP Server，支持 mock 降级** |
+| 部署 | Docker Compose / 裸机 | - | PM2 进程管理可选；n8n + Botpress 独立编排（docker-compose.agent.yml） |
 | 监控 | OpenTelemetry + Prometheus + Sentry | - | OTLP trace + metrics 端点 |
 
 ### 1.3 核心数字
 
 | 指标 | 数值 | 说明 |
 |------|------|------|
-| API 端点数 | **204** | 覆盖用户/商户/管理后台/开放 API 全场景 |
-| Prisma 数据模型 | **47** | 按 15 个业务域分组 |
+| API 端点数 | **214** | 覆盖用户/商户/管理后台/开放 API/**AI 智能体** 全场景 |
+| Prisma 数据模型 | **52** | 按 15 个业务域 + **1 个 AI 智能体域**分组 |
 | 单元测试 | **1023** | 覆盖所有 Service 与 Controller |
-| E2E 测试 | **324** | 位于 `test/` 目录 + `e2e_check.py` |
-| 业务模块数 | **35** | `src/` 下 35 个 NestJS 模块 |
-| 数据库迁移 | 22 个 | `prisma/migrations/` 下 |
+| E2E 测试 | **355** | 位于 `test/` 目录（含 v2.1.0 新增 31 个 Agent 测试） |
+| 业务模块数 | **36** | `src/` 下 36 个 NestJS 模块（含 v2.1.0 新增 AgentModule） |
+| 数据库迁移 | 23 个 | `prisma/migrations/` 下 |
 
 ### 1.4 项目定位
 
@@ -337,6 +338,90 @@ model ChannelStatement {
 | Subscription | `idempotencyKey` (@unique) | 订阅 |
 | SplitOrder | `idempotencyKey` (@unique) | 分账 |
 | PaymentOrder | `idempotencyKey` (@unique) + `@@unique([merchantId, merchantOrderNo])` | 商户订单号唯一 |
+
+### 3.7 为什么用 AgentAuthGuard 作为第 4 种认证（v2.1.0 新增）
+
+KeBaiPay v2.1.0 引入 AI 智能体层，需要为 Agent 提供独立的认证体系。设计原则：
+
+| 设计点 | 理由 |
+|--------|------|
+| **独立 JWT_AGENT_SECRET** | Agent token 不与 User/Admin 共用密钥，即便泄露也不影响主体系；与 AdminJwtAuthGuard 完全隔离 |
+| **typ='agent' 强校验** | JWT payload 中 `typ` 字段严格区分 user/admin/agent，防止用户 token 被误用为 Agent token |
+| **自包含 CanActivate** | 不依赖 Passport（与 User/Admin 不同），仿 AdminJwtAuthGuard 实现，避免引入额外抽象 |
+| **DB 实时校验** | 每次请求都查 DB 校验 Agent.status='ACTIVE' + AgentAuthorization 未撤销/未过期，防止降权残留（如 Agent 被禁用后旧 token 应立即失效） |
+| **携带主体授权信息** | JWT 中签入 subjectType/subjectId/authId/authScopes，避免每次调用工具都查 DB |
+| **7d 长期 token** | Agent 是机器身份，7d 默认有效期可减少 token 刷新开销；可配置 `JWT_AGENT_EXPIRES_IN` |
+
+**4 种认证对比**：
+
+| 认证 | 用途 | 密钥 | 守卫类型 | 依赖 |
+|------|------|------|----------|------|
+| JwtAuthGuard | C 端用户 | JWT_USER_SECRET | Passport-Jwt | PrismaService |
+| AdminJwtAuthGuard | A 端管理员 | JWT_ADMIN_SECRET | CanActivate（自包含） | PrismaService |
+| OpenApiGuard | B 端商户开放 API | HMAC appSecret | CanActivate（自包含） | MerchantApp 表 |
+| **AgentAuthGuard** | **AI Agent** | **JWT_AGENT_SECRET** | **CanActivate（自包含）** | **Agent + AgentAuthorization 表** |
+
+### 3.8 为什么 LLM 用 mock 降级模式（v2.1.0 新增）
+
+LlmService 抽象出统一的 `chat({ messages, tools, systemPrompt, maxSteps })` 接口，但生产环境可能因各种原因无法访问 LLM API（如配额耗尽、网络隔离、密钥失效），因此设计 mock 降级机制：
+
+```typescript
+async chat(input: { messages, tools, systemPrompt, maxSteps }): Promise<LlmResult> {
+  if (this.isMock) return this.mockChat(input.messages, input.tools ?? [])
+  const sdk = await this.getSdk()
+  if (!sdk) return this.mockChat(input.messages, input.tools ?? [])  // SDK 加载失败
+  try {
+    return await this.callWithSdk(sdk, input)
+  } catch (err) {
+    return this.mockChat(input.messages, input.tools ?? [])  // 调用失败
+  }
+}
+```
+
+**降级触发条件**：
+1. `LLM_PROVIDER=mock`（默认）：开发/测试环境
+2. `@ai-sdk/openai` 或 `ai` 模块未安装：动态 import 失败时
+3. LLM API 调用失败（超时、限流、5xx 等）：catch 后降级
+
+**降级行为**：mockChat 通过关键词匹配（"余额"/"账单"/"转"/"红包"/"对账"/"风控"）返回固定模板，告知用户当前为 mock 模式，避免完全无响应。
+
+### 3.9 为什么 Agent 资金操作要 Human-in-the-Loop（v2.1.0 新增）
+
+Agent 的工具调用分为两类：
+- **只读类**（query_balance/query_bill 等）：requireConfirm=false，直接执行
+- **资金类**（transfer/refund/send_red_packet 等）：requireConfirm=true，强制二次确认
+
+**资金类操作流程**：
+
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant A as Agent
+    participant L as LLM
+    participant DB as DB
+    participant M as MessagesService
+
+    U->>A: POST /agent/chat "向 Alice 转 100 元"
+    A->>L: chat(messages, tools=[kbpay_transfer])
+    L-->>A: toolCall(kbpay_transfer, {toUserId, amountYuan})
+    A->>DB: AgentOperationLog(PENDING_CONFIRM) + 链式 hash
+    A->>M: 推送站内消息"待确认操作"
+    A-->>U: 返回 pendingOps + toolCalls
+    Note over U: 用户查看后决策
+    U->>A: POST /agent/confirm {opLogId, decision}
+    alt decision=CONFIRM
+        A->>A: 执行 kbpay_transfer.execute(args)
+        A->>DB: 更新日志为 SUCCESS
+    else decision=REJECT
+        A->>DB: 更新日志为 REJECTED
+    end
+```
+
+**为什么不直接执行**：
+- 防止 LLM "幻觉"导致的错误转账（如金额错位、收款人错误）
+- 防止恶意 Prompt 注入让 Agent 执行非用户本意的操作
+- 提供审计断点：PENDING_CONFIRM 状态可作为风控审查的关键节点
+- 超时机制（默认 60s，`AGENT_CONFIRM_TIMEOUT_SEC`）防止操作悬挂
 
 ---
 

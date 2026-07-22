@@ -4,10 +4,180 @@
 
 ## 目录
 
+- [版本 2.1.0](#版本-210)（2026-07-22）
 - [版本 2.0.0](#版本-200)（2026-07-21）
 - [版本 1.0.0](#版本-100)（2026-07-13）
 - [已实现功能清单](#已实现功能清单)
 - [2026-07 重构记录](#2026-07-重构记录)
+
+---
+
+## 版本 2.1.0
+
+**发布日期：** 2026-07-22
+
+**版本类型：** AI 智能体层接入 —— 把 KeBaiPay 升级为基于 AI Agent 的智能支付平台
+
+### 升级概览
+
+本轮基于对 Vercel AI SDK、Stripe/PayPal Agent Toolkit、Shopify shop-chat-agent、Botpress、n8n 等开源项目的对标分析，新增完整的 AI 智能体层。**新增 10 个 API 端点**（204 → 214）、**新增 5 张 Prisma 模型**（47 → 52）、**新增 1 种认证方式**（AgentAuthGuard，独立 JWT_AGENT_SECRET）、**新增 31 个 e2e 测试**。
+
+### 核心能力
+
+#### 第 4 种认证：AgentAuthGuard
+
+- 独立于 User/Admin/OpenAPI，使用 JWT_AGENT_SECRET 签发长期 token（默认 7d）
+- 自包含 CanActivate，不依赖 Passport（仿 AdminJwtAuthGuard）
+- token 携带主体授权信息（subjectType/subjectId/authId/authScopes）
+- 实时查 DB 校验 Agent.status 与授权未撤销/未过期，防降权残留
+- JWT payload 中 `typ='agent'` 与其他三类隔离
+
+#### LLM 服务封装（mock 降级）
+
+- 抽象 LlmService：统一 `chat({ messages, tools, systemPrompt, maxSteps })` 接口
+- LLM_PROVIDER=mock 时降级为本地模板引擎（复用 RiskAuditAiEngine 模式）
+- 非 mock 时动态 import Vercel AI SDK v6（`generateText` + `tool()` + `maxSteps`）
+- SDK 加载失败也降级为 mock，保证无 LLM 环境可用
+- 支持 OpenAI 兼容协议（DeepSeek/OpenAI/Moonshot/通义等）
+
+#### 三大 Agent 场景
+
+**C 端钱包管家（wallet）：**
+- kbpay_query_balance：查余额（availableBalance/frozenBalance/totalBalance 三段）
+- kbpay_query_bill：查账单列表（带 amountYuan 转换）
+- kbpay_send_message：发站内消息（LOW/NORMAL/HIGH 优先级）
+- kbpay_claim_coupon：领优惠券（走 CouponsService.claim）
+- kbpay_transfer：用户间转账（**requireConfirm=true**，强制二次确认）
+
+**B 端店长助理（merchant）：**
+- kbpay_query_merchant_orders：查商户订单列表
+- kbpay_query_merchant_balance：通过 Merchant→User→Account 关联查询余额
+- kbpay_query_reconciliation_diff：查对账差异项
+
+**A 端风控审计官（risk）：**
+- kbpay_query_risk_events：查风险事件（按 level/status 过滤）
+- kbpay_query_health：查系统与调度任务健康状态
+- kbpay_query_reconciliation_diffs：查 S5 多平台对账差异
+
+#### Human-in-the-Loop 资金安全
+
+- 资金类工具（requireConfirm=true）不立即执行
+- 写入 AgentOperationLog PENDING_CONFIRM，推送站内消息通知用户
+- 用户调 `/agent/confirm` 接口决策：CONFIRM 执行工具 + 更新日志 SUCCESS，REJECT 更新日志 REJECTED
+- 默认超时 60 秒（AGENT_CONFIRM_TIMEOUT_SEC）
+
+#### 链式 hash 审计日志
+
+- AgentAuditLogService：每条操作日志带 hash + previousHash
+- hash = sha256(JSON({agentId, action, scope, amount, detail, result, previousHash}))
+- 使用 `pg_advisory_xact_lock` 串行化同 Agent 写入，防并发分叉
+- 创世 hash 为 `0`.repeat(64)
+- `verifyChain` 接口可校验哈希链完整性（防篡改）
+
+#### AI 巡检调度
+
+新增 AgentSchedule，3 个 @Cron 任务（注册到 ScheduleHealthService 被自身监控）：
+- 每 10 分钟：巡检 ScheduleHealthService，发现连续失败 ≥3 次时 LLM 生成告警
+- 每小时：扫描 ReconciliationDifferenceItem PENDING，LLM 生成处置建议
+- 每 30 分钟：扫描 RiskEvent HIGH 未处理，LLM 生成处置建议
+
+#### MCP Server（暴露给外部 AI Agent）
+
+- AgentMcpServer：嵌入式 MCP Server（@modelcontextprotocol/sdk）
+- 5 个工具：kbpay_query_balance / kbpay_query_order / kbpay_query_bill / kbpay_list_risk_events / kbpay_list_recon_diffs
+- 支持两种启动方式：
+  1. 嵌入启动（非生产环境，onModuleInit 自动初始化）
+  2. 独立进程：`node dist/agent/mcp/standalone.js`（stdio 传输，供 Claude Desktop / Cursor / Trae 配置）
+
+### 新增 Prisma 模型（5 张）
+
+| 模型 | 用途 |
+|------|------|
+| Agent | 智能体注册表（agentNo/name/appSecret/status/scopes/scenario） |
+| AgentAuthorization | 用户/商户对 Agent 的授权（subjectType/scopes/maxAmount/expiresAt/revokedAt） |
+| AgentOperationLog | 操作审计日志（链式 hash 防篡改） |
+| AgentConversation | 多轮对话会话（convNo/scenario/title/status/summary） |
+| AgentMessage | 对话消息（role: USER/ASSISTANT/TOOL/SYSTEM，含 toolCalls/tokens） |
+
+### 新增 API 端点（10 个）
+
+| 方法 | 路径 | 用途 |
+|------|------|------|
+| POST | /agent/conversations | 创建会话 |
+| GET | /agent/conversations | 查询会话列表 |
+| GET | /agent/conversations/:id/messages | 查询历史消息 |
+| POST | /agent/conversations/:id/close | 关闭会话 |
+| POST | /agent/chat | 发送消息（核心入口） |
+| POST | /agent/confirm | 确认/拒绝操作 |
+| GET | /agent/verify-chain/:agentId | 校验哈希链 |
+| POST | /agent/authorize | 用户授权 Agent |
+| POST | /agent/revoke/:authId | 撤销授权 |
+| GET | /agent/authorizations | 查询授权列表 |
+
+### 新增环境变量
+
+LLM 配置：
+- LLM_PROVIDER（mock/openai/deepseek 等，默认 mock）
+- LLM_API_KEY / LLM_BASE_URL / LLM_MODEL
+- LLM_TIMEOUT_MS / LLM_MAX_TOKENS / LLM_TEMPERATURE
+
+Agent 认证与限额：
+- JWT_AGENT_SECRET / JWT_AGENT_EXPIRES_IN
+- AGENT_MAX_AMOUNT_PER_OP / AGENT_MAX_AMOUNT_PER_DAY
+- AGENT_CONFIRM_TIMEOUT_SEC
+
+向量库与 MCP：
+- VECTRA_INDEX_DIR（Vectra 索引目录）
+- MCP_STRIPE_ENABLED / STRIPE_SECRET_KEY
+- MCP_PAYPAL_ENABLED / PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET
+
+### 新增文件清单（20 个）
+
+```
+src/agent/
+├── agent-current-user.interface.ts    # Agent 用户上下文类型
+├── agent-auth.guard.ts                # 第 4 种认证守卫
+├── agent-auth.service.ts              # Agent 创建/授权/login/revoke
+├── agent-audit-log.service.ts         # 链式 hash 审计日志
+├── agent.controller.ts                # 10 个 HTTP 端点
+├── agent.module.ts                    # 模块注册
+├── agent.schedule.ts                  # 3 个 AI 巡检 @Cron
+├── agent.service.ts                   # 核心编排（会话/消息/confirm）
+├── dto/agent.dto.ts                   # 6 个 DTO
+├── llm/
+│   ├── llm.config.ts                  # LLM 配置加载
+│   ├── llm.module.ts                  # @Global 模块
+│   └── llm.service.ts                 # LLM 调用 + mock 降级
+├── mcp/
+│   ├── agent-mcp.server.ts            # 嵌入式 MCP Server
+│   └── standalone.ts                  # 独立进程启动入口
+└── tools/
+    └── tool.registry.ts               # 工具注册表（11 个工具）
+
+prisma/migrations/20260722000000_add_agent_tables/
+└── migration.sql                      # 5 张表 DDL
+
+test/
+└── agent.e2e-spec.ts                  # 31 个 e2e 测试
+
+docker-compose.agent.yml               # n8n + Botpress 独立部署
+```
+
+### 测试
+
+- 新增 31 个 e2e 测试（test/agent.e2e-spec.ts）
+- 覆盖：AgentAuthGuard / 会话管理 / chat 核心入口 / authorize / confirm / verify-chain / ToolRegistry / AgentAuditLogService / LlmService mock 模式
+- 全量 e2e：4 个套件 39 个测试全部通过
+- TypeScript 编译 0 错误
+
+### 参考的开源项目
+
+- Vercel AI SDK v6：Agent 循环（generateText + tool() + maxSteps）
+- @modelcontextprotocol/sdk：MCP 协议
+- Stripe/PayPal Agent Toolkit：支付工具封装思路
+- Shopify shop-chat-agent：AI 电商 Agent 蓝本
+- Botpress：TS 原生客服系统（MIT，独立 Docker 部署）
+- n8n：TS 原生工作流引擎（Sustainable Use License，独立 Docker 部署）
 
 ---
 

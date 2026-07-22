@@ -1,7 +1,7 @@
 {
   "name": "kebaipay",
-  "version": "2.0.0",
-  "description": "KeBaiPay 科佰支付 - 个人钱包 + 商户收款 + 开放 API + 多平台对账聚合平台（NestJS 11 + Prisma 7 + PostgreSQL 16 + Redis 7）",
+  "version": "2.1.0",
+  "description": "KeBaiPay 科佰支付 - 个人钱包 + 商户收款 + 开放 API + 多平台对账聚合 + AI 智能体层平台（NestJS 11 + Prisma 7 + PostgreSQL 16 + Redis 7 + Vercel AI SDK v6 + MCP）",
   "author": "科佰网络技术有限公司",
   "license": "ISC",
   "private": true,
@@ -32,6 +32,9 @@
     "clean": "rm -rf dist node_modules/.cache"
   },
   "dependencies": {
+    "@ai-sdk/mcp": "^2.0.16",
+    "@ai-sdk/openai": "^4.0.17",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@nestjs-modules/mailer": "^2.3.7",
     "@nestjs/common": "^11.1.27",
     "@nestjs/config": "^4.0.4",
@@ -53,6 +56,7 @@
     "@prisma/client": "^7.8.0",
     "@types/compression": "^1.8.1",
     "@types/pg": "^8.15.5",
+    "ai": "^7.0.34",
     "alipay-sdk": "^4.14.0",
     "bcrypt": "^6.0.0",
     "class-sanitizer": "^1.0.1",
@@ -75,7 +79,9 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "tencentcloud-sdk-nodejs-sms": "^4.1.240",
-    "wechatpay-node-v3": "^2.2.1"
+    "vectra": "^0.15.0",
+    "wechatpay-node-v3": "^2.2.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.23",

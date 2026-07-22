@@ -7,95 +7,97 @@ datasource db {
 }
 
 model User {
-  id             String         @id @default(uuid())
+  id             String   @id @default(uuid())
   nickname       String
-  phone          String?        @unique
-  email          String?        @unique
-  loginPassword  String         @map("login_password")
-  payPassword    String?        @map("pay_password")
+  phone          String?  @unique
+  email          String?  @unique
+  loginPassword  String   @map("login_password")
+  payPassword    String?  @map("pay_password")
   avatar         String?
-  status         String         @default("ACTIVE")
-  realNameStatus String         @default("UNVERIFIED") @map("real_name_status")
-  createdAt      DateTime       @default(now()) @map("created_at")
-  updatedAt      DateTime       @updatedAt @map("updated_at")
+  status         String   @default("ACTIVE")
+  realNameStatus String   @default("UNVERIFIED") @map("real_name_status")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
-  account          Account?
-  identity         IdentityVerification?
-  merchant         Merchant?
-  riskLevel        String        @default("LOW") @map("risk_level")
-  loginLogs        LoginLog[]
-  riskEvents       RiskEvent[]
-  fromTransactions TransactionOrder[] @relation("FromUser")
-  toTransactions   TransactionOrder[] @relation("ToUser")
-  bills            Bill[]
-  withdrawals      WithdrawalOrder[]
-  redPackets       RedPacket[]
-  qrCodes          QrCode[]
-  bankCards        BankCard[]
-  escrowBuyer      EscrowOrder[]  @relation("EscrowBuyer")
-  escrowSeller     EscrowOrder[]  @relation("EscrowSeller")
-  batchTransfers   BatchTransfer[]  @relation("BatchTransferSender")
-  subscriptions         Subscription[]         @relation("SubscriptionSubscriber")
-  subscriptionCharges   SubscriptionCharge[]   @relation("SubscriptionCharger")
-  subscriptionPlans     SubscriptionPlan[]     @relation("SubscriptionPlanOwner")
-  splitOrdersSender     SplitOrder[]          @relation("SplitOrderSender")
-  splitItemsReceiver    SplitItem[]           @relation("SplitItemReceiver")
-  couponsOwned          Coupon[]              @relation("CouponOwner")
-  userCoupons           UserCoupon[]          @relation("UserCouponUser")
-  referralCode          ReferralCode?
-  referralsMade         Referral[]            @relation("ReferralReferrer")
-  referralAsInvitee     Referral?             @relation("ReferralInvitee")
-  messages              Message[]             @relation("MessageUser")
-  messageReads          MessageRead[]         @relation("MessageReadUser")
-  riskAuditSessions     RiskAuditSession[]   @relation("RiskAuditSessionUser")
+  account             Account?
+  identity            IdentityVerification?
+  merchant            Merchant?
+  riskLevel           String                @default("LOW") @map("risk_level")
+  loginLogs           LoginLog[]
+  riskEvents          RiskEvent[]
+  fromTransactions    TransactionOrder[]    @relation("FromUser")
+  toTransactions      TransactionOrder[]    @relation("ToUser")
+  bills               Bill[]
+  withdrawals         WithdrawalOrder[]
+  redPackets          RedPacket[]
+  qrCodes             QrCode[]
+  bankCards           BankCard[]
+  escrowBuyer         EscrowOrder[]         @relation("EscrowBuyer")
+  escrowSeller        EscrowOrder[]         @relation("EscrowSeller")
+  batchTransfers      BatchTransfer[]       @relation("BatchTransferSender")
+  subscriptions       Subscription[]        @relation("SubscriptionSubscriber")
+  subscriptionCharges SubscriptionCharge[]  @relation("SubscriptionCharger")
+  subscriptionPlans   SubscriptionPlan[]    @relation("SubscriptionPlanOwner")
+  splitOrdersSender   SplitOrder[]          @relation("SplitOrderSender")
+  splitItemsReceiver  SplitItem[]           @relation("SplitItemReceiver")
+  couponsOwned        Coupon[]              @relation("CouponOwner")
+  userCoupons         UserCoupon[]          @relation("UserCouponUser")
+  referralCode        ReferralCode?
+  referralsMade       Referral[]            @relation("ReferralReferrer")
+  referralAsInvitee   Referral?             @relation("ReferralInvitee")
+  messages            Message[]             @relation("MessageUser")
+  messageReads        MessageRead[]         @relation("MessageReadUser")
+  riskAuditSessions   RiskAuditSession[]    @relation("RiskAuditSessionUser")
+  agentConversations  AgentConversation[]   @relation("AgentConversationUser")
+  agentAuthorizations AgentAuthorization[]  @relation("AgentAuthorizationUser")
 
   @@map("users")
 }
 
 model Merchant {
-  id                String        @id @default(uuid())
-  userId            String        @unique @map("user_id")
-  merchantNo        String        @unique @map("merchant_no")
-  merchantName      String        @map("merchant_name")
-  merchantType      String        @default("PERSONAL") @map("merchant_type")
-  businessLicenseNo String?       @map("business_license_no")
-  contactName       String?       @map("contact_name")
-  contactPhone      String?       @map("contact_phone")
-  settleAccount     String?       @map("settle_account")
-  status            String        @default("PENDING") @map("status")
-  rejectReason      String?       @map("reject_reason")
-  reviewedBy        String?       @map("reviewed_by")
-  reviewedAt        DateTime?     @map("reviewed_at")
-  payRate           Int           @default(60) @map("pay_rate")
-  withdrawRate      Int           @default(60) @map("withdraw_rate")
-  dailyLimit        Int           @default(10000000) @map("daily_limit")
-  createdAt         DateTime      @default(now()) @map("created_at")
-  updatedAt         DateTime      @updatedAt @map("updated_at")
+  id                String    @id @default(uuid())
+  userId            String    @unique @map("user_id")
+  merchantNo        String    @unique @map("merchant_no")
+  merchantName      String    @map("merchant_name")
+  merchantType      String    @default("PERSONAL") @map("merchant_type")
+  businessLicenseNo String?   @map("business_license_no")
+  contactName       String?   @map("contact_name")
+  contactPhone      String?   @map("contact_phone")
+  settleAccount     String?   @map("settle_account")
+  status            String    @default("PENDING") @map("status")
+  rejectReason      String?   @map("reject_reason")
+  reviewedBy        String?   @map("reviewed_by")
+  reviewedAt        DateTime? @map("reviewed_at")
+  payRate           Int       @default(60) @map("pay_rate")
+  withdrawRate      Int       @default(60) @map("withdraw_rate")
+  dailyLimit        Int       @default(10000000) @map("daily_limit")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id])
-  apps            MerchantApp[]
-  paymentOrders   PaymentOrder[]
-  qrCodes         QrCode[]
-  invoices        Invoice[]
+  user          User           @relation(fields: [userId], references: [id])
+  apps          MerchantApp[]
+  paymentOrders PaymentOrder[]
+  qrCodes       QrCode[]
+  invoices      Invoice[]
 
   @@index([status])
   @@map("merchants")
 }
 
 model IdentityVerification {
-  id        String         @id @default(uuid())
-  userId    String         @unique @map("user_id")
-  realName  String         @map("real_name")
-  idCard    String         @unique @map("id_card")
+  id                     String   @id @default(uuid())
+  userId                 String   @unique @map("user_id")
+  realName               String   @map("real_name")
+  idCard                 String   @unique @map("id_card")
   // idCard 加密后每次密文不同，无法用 @unique 保证唯一性；
   // 改存 SHA-256 哈希用于唯一约束，防止同一身份证被多用户提交
-  idCardHash String?       @unique @map("id_card_hash")
-  status    String         @default("PENDING")
+  idCardHash             String?  @unique @map("id_card_hash")
+  status                 String   @default("PENDING")
   // 审核通过前暂存支付密码哈希，审核通过时写入 user.payPassword；
   // 审核拒绝时清空此字段，避免保留未生效的密码哈希；user.payPassword 永不写入
-  pendingPayPasswordHash String? @map("pending_pay_password_hash")
-  createdAt DateTime       @default(now()) @map("created_at")
-  updatedAt DateTime       @updatedAt @map("updated_at")
+  pendingPayPasswordHash String?  @map("pending_pay_password_hash")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id])
 
@@ -104,33 +106,33 @@ model IdentityVerification {
 }
 
 model Account {
-  id               String        @id @default(uuid())
-  userId           String        @unique @map("user_id")
-  availableBalance Int           @default(0) @map("available_balance")
-  frozenBalance    Int           @default(0) @map("frozen_balance")
-  totalBalance     Int           @default(0) @map("total_balance")
-  status           String        @default("ACTIVE")
-  createdAt        DateTime      @default(now()) @map("created_at")
-  updatedAt        DateTime      @updatedAt @map("updated_at")
+  id               String   @id @default(uuid())
+  userId           String   @unique @map("user_id")
+  availableBalance Int      @default(0) @map("available_balance")
+  frozenBalance    Int      @default(0) @map("frozen_balance")
+  totalBalance     Int      @default(0) @map("total_balance")
+  status           String   @default("ACTIVE")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
-  user     User            @relation(fields: [userId], references: [id])
-  ledgers  AccountLedger[]
+  user    User            @relation(fields: [userId], references: [id])
+  ledgers AccountLedger[]
 
   @@index([status])
   @@map("accounts")
 }
 
 model AccountLedger {
-  id            String      @id @default(uuid())
-  accountId     String      @map("account_id")
-  transactionId String      @map("transaction_id")
+  id            String   @id @default(uuid())
+  accountId     String   @map("account_id")
+  transactionId String   @map("transaction_id")
   type          String
   amount        Int
-  balanceBefore Int         @map("balance_before")
-  balanceAfter  Int         @map("balance_after")
+  balanceBefore Int      @map("balance_before")
+  balanceAfter  Int      @map("balance_after")
   direction     String
   remark        String?
-  createdAt     DateTime    @default(now()) @map("created_at")
+  createdAt     DateTime @default(now()) @map("created_at")
 
   account Account @relation(fields: [accountId], references: [id])
 
@@ -142,26 +144,26 @@ model AccountLedger {
 }
 
 model TransactionOrder {
-  id             String            @id @default(uuid())
-  orderNo        String            @unique @map("order_no")
+  id             String    @id @default(uuid())
+  orderNo        String    @unique @map("order_no")
   type           String
-  status         String            @default("PENDING")
+  status         String    @default("PENDING")
   amount         Int
-  fee            Int               @default(0)
-  fromUserId     String?           @map("from_user_id")
-  toUserId       String?           @map("to_user_id")
+  fee            Int       @default(0)
+  fromUserId     String?   @map("from_user_id")
+  toUserId       String?   @map("to_user_id")
   remark         String?
-  relatedOrderNo String?           @map("related_order_no")
-  idempotencyKey String?           @unique @map("idempotency_key")
+  relatedOrderNo String?   @map("related_order_no")
+  idempotencyKey String?   @unique @map("idempotency_key")
   channel        String?
-  channelOrderNo String?           @map("channel_order_no")
-  expiresAt      DateTime?         @map("expires_at")
-  completedAt    DateTime?         @map("completed_at")
-  createdAt      DateTime          @default(now()) @map("created_at")
-  updatedAt      DateTime          @updatedAt @map("updated_at")
+  channelOrderNo String?   @map("channel_order_no")
+  expiresAt      DateTime? @map("expires_at")
+  completedAt    DateTime? @map("completed_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  fromUser User?  @relation("FromUser", fields: [fromUserId], references: [id])
-  toUser   User?  @relation("ToUser", fields: [toUserId], references: [id])
+  fromUser User? @relation("FromUser", fields: [fromUserId], references: [id])
+  toUser   User? @relation("ToUser", fields: [toUserId], references: [id])
 
   @@index([fromUserId])
   @@index([toUserId])
@@ -174,15 +176,15 @@ model TransactionOrder {
 }
 
 model Bill {
-  id            String        @id @default(uuid())
-  userId        String        @map("user_id")
-  transactionId String        @map("transaction_id")
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  transactionId String   @map("transaction_id")
   type          String
   direction     String
   amount        Int
   counterparty  String?
   remark        String?
-  createdAt     DateTime      @default(now()) @map("created_at")
+  createdAt     DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id])
 
@@ -195,22 +197,22 @@ model Bill {
 }
 
 model WithdrawalOrder {
-  id          String           @id @default(uuid())
-  orderNo     String           @unique @map("order_no")
-  userId      String           @map("user_id")
-  amount      Int
-  fee         Int              @default(0)
-  actualAmount Int             @map("actual_amount")
-  status      String           @default("PENDING")
-  channel     String           @default("BANK")
-  channelOrderNo String?       @map("channel_order_no")
-  channelAccount String?       @map("channel_account")
-  reviewedBy  String?          @map("reviewed_by")
-  reviewedAt  DateTime?        @map("reviewed_at")
-  remark      String?
-  idempotencyKey String?       @unique @map("idempotency_key")
-  createdAt   DateTime         @default(now()) @map("created_at")
-  updatedAt   DateTime         @updatedAt @map("updated_at")
+  id             String    @id @default(uuid())
+  orderNo        String    @unique @map("order_no")
+  userId         String    @map("user_id")
+  amount         Int
+  fee            Int       @default(0)
+  actualAmount   Int       @map("actual_amount")
+  status         String    @default("PENDING")
+  channel        String    @default("BANK")
+  channelOrderNo String?   @map("channel_order_no")
+  channelAccount String?   @map("channel_account")
+  reviewedBy     String?   @map("reviewed_by")
+  reviewedAt     DateTime? @map("reviewed_at")
+  remark         String?
+  idempotencyKey String?   @unique @map("idempotency_key")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id])
 
@@ -222,30 +224,30 @@ model WithdrawalOrder {
 }
 
 model RedPacket {
-  id           String           @id @default(uuid())
-  packetNo     String           @unique @map("packet_no")
-  senderId     String           @map("sender_id")
-  amount       Int
-  status       String           @default("PENDING")
-  remark       String?
-  expiresAt    DateTime         @map("expires_at")
-  receivedAt   DateTime?        @map("received_at")
-  returnedAt   DateTime?        @map("returned_at")
-  idempotencyKey String?        @unique @map("idempotency_key")
+  id                   String    @id @default(uuid())
+  packetNo             String    @unique @map("packet_no")
+  senderId             String    @map("sender_id")
+  amount               Int
+  status               String    @default("PENDING")
+  remark               String?
+  expiresAt            DateTime  @map("expires_at")
+  receivedAt           DateTime? @map("received_at")
+  returnedAt           DateTime? @map("returned_at")
+  idempotencyKey       String?   @unique @map("idempotency_key")
   // 微信原生红包协议扩展字段
   // type: LUCKY（拼手气）/ ORDINARY（普通平均）/ EXCLUSIVE（专属）/ PASSWORD（口令）
-  type         String           @default("LUCKY")
-  totalCount   Int              @default(1) @map("total_count")
-  remainingCount Int           @default(1) @map("remaining_count")
-  perAmount    Int?             @map("per_amount")
-  password     String?
-  designatedReceiverId String? @map("designated_receiver_id")
-  receivedAmount Int            @default(0) @map("received_amount")
-  createdAt    DateTime         @default(now()) @map("created_at")
-  updatedAt    DateTime         @updatedAt @map("updated_at")
+  type                 String    @default("LUCKY")
+  totalCount           Int       @default(1) @map("total_count")
+  remainingCount       Int       @default(1) @map("remaining_count")
+  perAmount            Int?      @map("per_amount")
+  password             String?
+  designatedReceiverId String?   @map("designated_receiver_id")
+  receivedAmount       Int       @default(0) @map("received_amount")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
 
-  sender   User              @relation(fields: [senderId], references: [id])
-  records  RedPacketRecord[]
+  sender  User              @relation(fields: [senderId], references: [id])
+  records RedPacketRecord[]
 
   @@index([senderId])
   @@index([status, expiresAt])
@@ -255,35 +257,35 @@ model RedPacket {
 }
 
 model RedPacketRecord {
-  id          String              @id @default(uuid())
-  redPacketId String              @map("red_packet_id")
-  receiverId  String              @map("receiver_id")
+  id          String   @id @default(uuid())
+  redPacketId String   @map("red_packet_id")
+  receiverId  String   @map("receiver_id")
   amount      Int
   type        String
-  createdAt   DateTime            @default(now()) @map("created_at")
+  createdAt   DateTime @default(now()) @map("created_at")
 
   redPacket RedPacket @relation(fields: [redPacketId], references: [id])
 
+  @@unique([redPacketId, receiverId])
   @@index([redPacketId])
   @@index([receiverId])
-  @@unique([redPacketId, receiverId])
   @@map("red_packet_records")
 }
 
 model QrCode {
-  id         String       @id @default(uuid())
-  code       String       @unique
-  userId     String       @map("user_id")
-  merchantId String?      @map("merchant_id")
-  type       String       @default("PERSONAL")
+  id         String    @id @default(uuid())
+  code       String    @unique
+  userId     String    @map("user_id")
+  merchantId String?   @map("merchant_id")
+  type       String    @default("PERSONAL")
   amount     Int?
   remark     String?
-  status     String       @default("ACTIVE")
+  status     String    @default("ACTIVE")
   expiresAt  DateTime?
-  createdAt  DateTime     @default(now()) @map("created_at")
-  updatedAt  DateTime     @updatedAt @map("updated_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id])
+  user     User      @relation(fields: [userId], references: [id])
   merchant Merchant? @relation(fields: [merchantId], references: [id])
 
   @@index([userId])
@@ -293,15 +295,15 @@ model QrCode {
 }
 
 model MerchantApp {
-  id          String    @id @default(uuid())
-  merchantId  String    @map("merchant_id")
-  appId       String    @unique @map("app_id")
-  appSecret   String    @map("app_secret")
+  id          String   @id @default(uuid())
+  merchantId  String   @map("merchant_id")
+  appId       String   @unique @map("app_id")
+  appSecret   String   @map("app_secret")
   name        String
-  callbackUrl String?   @map("callback_url")
-  status      String    @default("ACTIVE")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  callbackUrl String?  @map("callback_url")
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   merchant Merchant @relation(fields: [merchantId], references: [id])
 
@@ -311,35 +313,36 @@ model MerchantApp {
 }
 
 model PaymentOrder {
-  id              String            @id @default(uuid())
-  orderNo         String            @unique @map("order_no")
-  merchantId      String            @map("merchant_id")
-  merchantOrderNo String            @map("merchant_order_no")
-  appId           String?           @map("app_id")
+  id              String    @id @default(uuid())
+  orderNo         String    @unique @map("order_no")
+  merchantId      String    @map("merchant_id")
+  merchantOrderNo String    @map("merchant_order_no")
+  appId           String?   @map("app_id")
   amount          Int
-  fee             Int               @default(0)
-  currency        String            @default("CNY")
+  fee             Int       @default(0)
+  currency        String    @default("CNY")
   subject         String
   body            String?
-  status          String            @default("PENDING")
-  payerId         String?           @map("payer_id")
-  paidAt          DateTime?         @map("paid_at")
-  expiredAt       DateTime?         @map("expired_at")
-  callbackUrl     String?           @map("callback_url")
-  notifyStatus    String            @default("PENDING") @map("notify_status")
-  notifyCount     Int               @default(0) @map("notify_count")
+  status          String    @default("PENDING")
+  payerId         String?   @map("payer_id")
+  paidAt          DateTime? @map("paid_at")
+  expiredAt       DateTime? @map("expired_at")
+  callbackUrl     String?   @map("callback_url")
+  notifyStatus    String    @default("PENDING") @map("notify_status")
+  notifyCount     Int       @default(0) @map("notify_count")
   extra           String?
-  idempotencyKey  String?           @unique @map("idempotency_key")
-  refundAmount    Int               @default(0) @map("refund_amount")
-  refundedAt      DateTime?         @map("refunded_at")
-  refundedBy      String?           @map("refunded_by")
-  refundReason    String?           @map("refund_reason")
-  settledAt       DateTime?         @map("settled_at")
-  createdAt       DateTime          @default(now()) @map("created_at")
-  updatedAt       DateTime          @updatedAt @map("updated_at")
+  idempotencyKey  String?   @unique @map("idempotency_key")
+  refundAmount    Int       @default(0) @map("refund_amount")
+  refundedAt      DateTime? @map("refunded_at")
+  refundedBy      String?   @map("refunded_by")
+  refundReason    String?   @map("refund_reason")
+  settledAt       DateTime? @map("settled_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   merchant Merchant @relation(fields: [merchantId], references: [id])
 
+  @@unique([merchantId, merchantOrderNo])
   @@index([merchantId])
   @@index([status])
   @@index([payerId])
@@ -348,19 +351,18 @@ model PaymentOrder {
   @@index([notifyStatus])
   @@index([settledAt])
   @@index([status, settledAt, paidAt])
-  @@unique([merchantId, merchantOrderNo])
   @@map("payment_orders")
 }
 
 model AdminUser {
-  id        String     @id @default(uuid())
-  username  String     @unique
+  id        String   @id @default(uuid())
+  username  String   @unique
   password  String
   nickname  String?
-  role      String     @default("SUPER_ADMIN")
-  status    String     @default("ACTIVE")
-  createdAt DateTime   @default(now()) @map("created_at")
-  updatedAt DateTime   @updatedAt @map("updated_at")
+  role      String   @default("SUPER_ADMIN")
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("admin_users")
 }
@@ -382,15 +384,15 @@ model LoginLog {
 }
 
 model RiskEvent {
-  id          String     @id @default(uuid())
-  userId      String     @map("user_id")
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
   type        String
   level       String
   description String
-  handled     Boolean    @default(false)
-  handledBy   String?    @map("handled_by")
-  handledAt   DateTime?  @map("handled_at")
-  createdAt   DateTime   @default(now()) @map("created_at")
+  handled     Boolean   @default(false)
+  handledBy   String?   @map("handled_by")
+  handledAt   DateTime? @map("handled_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id])
 
@@ -403,15 +405,15 @@ model RiskEvent {
 }
 
 model DailySnapshot {
-  id              String   @id @default(uuid())
-  date            String   @unique
-  totalAssets     Int      @map("total_assets")
-  totalIncome     Int      @default(0) @map("total_income")
-  totalExpense    Int      @default(0) @map("total_expense")
-  totalFee        Int      @default(0) @map("total_fee")
-  transactionCount Int     @default(0) @map("transaction_count")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  id               String   @id @default(uuid())
+  date             String   @unique
+  totalAssets      Int      @map("total_assets")
+  totalIncome      Int      @default(0) @map("total_income")
+  totalExpense     Int      @default(0) @map("total_expense")
+  totalFee         Int      @default(0) @map("total_fee")
+  transactionCount Int      @default(0) @map("transaction_count")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   @@map("daily_snapshots")
 }
@@ -432,15 +434,15 @@ model DailyLimitUsage {
 }
 
 model ReconciliationReport {
-  id          String   @id @default(uuid())
-  date        String   @unique
-  status      String   @default("PENDING")
+  id          String    @id @default(uuid())
+  date        String    @unique
+  status      String    @default("PENDING")
   differences String?
   summary     String?
-  checkedBy   String?  @map("checked_by")
+  checkedBy   String?   @map("checked_by")
   checkedAt   DateTime? @map("checked_at")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
   @@map("reconciliation_reports")
 }
@@ -449,19 +451,19 @@ model ReconciliationReport {
  * S5 多平台对账聚合：渠道对账单（每个渠道每日一条）
  */
 model ChannelStatement {
-  id           String   @id @default(uuid())
-  channelCode  String   @map("channel_code")
+  id           String    @id @default(uuid())
+  channelCode  String    @map("channel_code")
   date         String
-  status       String   @default("PENDING")
-  totalCount   Int      @default(0) @map("total_count")
-  totalAmount  Int      @default(0) @map("total_amount")
+  status       String    @default("PENDING")
+  totalCount   Int       @default(0) @map("total_count")
+  totalAmount  Int       @default(0) @map("total_amount")
   fetchedAt    DateTime? @map("fetched_at")
-  fetchedBy    String?  @map("fetched_by")
-  errorMessage String?  @map("error_message")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  fetchedBy    String?   @map("fetched_by")
+  errorMessage String?   @map("error_message")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  items        ChannelStatementItem[]
+  items ChannelStatementItem[]
 
   @@unique([channelCode, date])
   @@index([date])
@@ -473,22 +475,22 @@ model ChannelStatement {
  * 渠道对账单条目：每个渠道流水一行
  */
 model ChannelStatementItem {
-  id              String   @id @default(uuid())
-  statementId     String   @map("statement_id")
-  channelOrderNo  String   @map("channel_order_no")
-  channelCode     String   @map("channel_code")
-  date            String
-  type            String
-  amount          Int
-  fee             Int      @default(0)
-  status          String
-  matchedOrderNo  String?  @map("matched_order_no")
-  matchedType     String?  @map("matched_type")
-  matchStatus     String   @default("UNMATCHED") @map("match_status")
-  rawPayload      String?  @map("raw_payload")
-  createdAt       DateTime @default(now()) @map("created_at")
+  id             String   @id @default(uuid())
+  statementId    String   @map("statement_id")
+  channelOrderNo String   @map("channel_order_no")
+  channelCode    String   @map("channel_code")
+  date           String
+  type           String
+  amount         Int
+  fee            Int      @default(0)
+  status         String
+  matchedOrderNo String?  @map("matched_order_no")
+  matchedType    String?  @map("matched_type")
+  matchStatus    String   @default("UNMATCHED") @map("match_status")
+  rawPayload     String?  @map("raw_payload")
+  createdAt      DateTime @default(now()) @map("created_at")
 
-  statement       ChannelStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  statement ChannelStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
 
   @@index([statementId])
   @@index([channelCode, date])
@@ -501,21 +503,21 @@ model ChannelStatementItem {
  * S5 多平台对账聚合：差异项独立表（差异处理工作流）
  */
 model ReconciliationDifferenceItem {
-  id              String   @id @default(uuid())
-  reportDate      String   @map("report_date")
-  channelCode     String?  @map("channel_code")
-  channelOrderNo  String?  @map("channel_order_no")
-  platformOrderNo String?  @map("platform_order_no")
-  diffType        String   @map("diff_type")
-  amount          Int      @default(0)
+  id              String    @id @default(uuid())
+  reportDate      String    @map("report_date")
+  channelCode     String?   @map("channel_code")
+  channelOrderNo  String?   @map("channel_order_no")
+  platformOrderNo String?   @map("platform_order_no")
+  diffType        String    @map("diff_type")
+  amount          Int       @default(0)
   description     String
-  status          String   @default("PENDING")
-  assignedTo      String?  @map("assigned_to")
+  status          String    @default("PENDING")
+  assignedTo      String?   @map("assigned_to")
   resolution      String?
-  resolvedBy      String?  @map("resolved_by")
+  resolvedBy      String?   @map("resolved_by")
   resolvedAt      DateTime? @map("resolved_at")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   @@index([reportDate])
   @@index([channelCode, reportDate])
@@ -557,7 +559,7 @@ model WebhookLog {
   id           String   @id @default(uuid())
   channelCode  String   @map("channel_code")
   callbackType String   @map("callback_type") // recharge / payout / refund
-  status       String   // SUCCESS / SIGNATURE_FAILED / SIGNATURE_ERROR / PROCESS_ERROR
+  status       String // SUCCESS / SIGNATURE_FAILED / SIGNATURE_ERROR / PROCESS_ERROR
   rawBody      String   @map("raw_body") @db.Text
   // 错误信息（status != SUCCESS 时填），SUCCESS 时为 null
   errorMessage String?  @map("error_message") @db.Text
@@ -625,10 +627,10 @@ model BankCard {
   // 明文卡号 SHA-256，用于唯一约束（同用户下卡号唯一）
   cardNumberHash String   @unique @map("card_number_hash")
   bankName       String   @map("bank_name")
-  branchName    String?   @map("branch_name")
+  branchName     String?  @map("branch_name")
   // 预留手机号（加密）：绑卡校验、短信验证用
   phone          String?
-  phoneHash     String?  @map("phone_hash")
+  phoneHash      String?  @map("phone_hash")
   cardType       String   @default("DEBIT") @map("card_type") // DEBIT / CREDIT
   isDefault      Boolean  @default(false) @map("is_default")
   status         String   @default("ACTIVE") // ACTIVE / DELETED
@@ -645,28 +647,28 @@ model BankCard {
 /// 担保交易订单：买家付款时资金冻结，待买家确认收货后才放款给卖家。
 /// 支持发货后超时自动放款、付款前超时自动取消、退款申请与争议处理。
 model EscrowOrder {
-  id              String    @id @default(uuid())
-  orderNo         String    @unique @map("order_no")
-  buyerId         String    @map("buyer_id")
-  sellerId        String    @map("seller_id")
-  amount          Int
-  fee             Int       @default(0)
-  subject         String
-  body            String?
-  status          String    @default("CREATED")
-  paidAt          DateTime? @map("paid_at")
-  shippedAt       DateTime? @map("shipped_at")
-  receivedAt      DateTime? @map("received_at")
-  refundedAt      DateTime? @map("refunded_at")
-  cancelledAt     DateTime? @map("cancelled_at")
-  expiredAt       DateTime? @map("expired_at")
-  refundReason    String?   @map("refund_reason")
-  disputeReason   String?   @map("dispute_reason")
-  disputeResolvedBy String? @map("dispute_resolved_by")
+  id                String    @id @default(uuid())
+  orderNo           String    @unique @map("order_no")
+  buyerId           String    @map("buyer_id")
+  sellerId          String    @map("seller_id")
+  amount            Int
+  fee               Int       @default(0)
+  subject           String
+  body              String?
+  status            String    @default("CREATED")
+  paidAt            DateTime? @map("paid_at")
+  shippedAt         DateTime? @map("shipped_at")
+  receivedAt        DateTime? @map("received_at")
+  refundedAt        DateTime? @map("refunded_at")
+  cancelledAt       DateTime? @map("cancelled_at")
+  expiredAt         DateTime? @map("expired_at")
+  refundReason      String?   @map("refund_reason")
+  disputeReason     String?   @map("dispute_reason")
+  disputeResolvedBy String?   @map("dispute_resolved_by")
   disputeResolvedAt DateTime? @map("dispute_resolved_at")
-  idempotencyKey  String?   @unique @map("idempotency_key")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  idempotencyKey    String?   @unique @map("idempotency_key")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
   buyer  User @relation("EscrowBuyer", fields: [buyerId], references: [id])
   seller User @relation("EscrowSeller", fields: [sellerId], references: [id])
@@ -681,20 +683,20 @@ model EscrowOrder {
 
 /// 批量转账批次：一次提交 N 个收款人，原子校验后逐笔处理
 model BatchTransfer {
-  id              String    @id @default(uuid())
-  batchNo         String    @unique @map("batch_no")
-  senderId        String    @map("sender_id")
-  totalCount      Int       @default(0) @map("total_count")
-  successCount    Int       @default(0) @map("success_count")
-  failedCount     Int       @default(0) @map("failed_count")
-  totalAmount     Int       @default(0) @map("total_amount")
-  status          String    @default("PENDING") // PENDING/PROCESSING/COMPLETED/CANCELLED
-  remark          String?
-  idempotencyKey  String?   @unique @map("idempotency_key")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  id             String   @id @default(uuid())
+  batchNo        String   @unique @map("batch_no")
+  senderId       String   @map("sender_id")
+  totalCount     Int      @default(0) @map("total_count")
+  successCount   Int      @default(0) @map("success_count")
+  failedCount    Int      @default(0) @map("failed_count")
+  totalAmount    Int      @default(0) @map("total_amount")
+  status         String   @default("PENDING") // PENDING/PROCESSING/COMPLETED/CANCELLED
+  remark         String?
+  idempotencyKey String?  @unique @map("idempotency_key")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
-  sender User              @relation("BatchTransferSender", fields: [senderId], references: [id])
+  sender User                @relation("BatchTransferSender", fields: [senderId], references: [id])
   items  BatchTransferItem[]
 
   @@index([senderId])
@@ -704,15 +706,15 @@ model BatchTransfer {
 
 /// 批量转账明细：每笔收款独立处理，单独记录状态
 model BatchTransferItem {
-  id              String    @id @default(uuid())
-  batchId         String    @map("batch_id")
-  toUserId        String    @map("to_user_id")
-  amount          Int
-  status          String    @default("PENDING") // PENDING/SUCCESS/FAILED
-  transactionId   String?   @map("transaction_id")
-  failureReason   String?   @map("failure_reason")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  id            String   @id @default(uuid())
+  batchId       String   @map("batch_id")
+  toUserId      String   @map("to_user_id")
+  amount        Int
+  status        String   @default("PENDING") // PENDING/SUCCESS/FAILED
+  transactionId String?  @map("transaction_id")
+  failureReason String?  @map("failure_reason")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   batch BatchTransfer @relation(fields: [batchId], references: [id])
 
@@ -724,21 +726,21 @@ model BatchTransferItem {
 
 /// 订阅计划：商户/平台创建的计费方案
 model SubscriptionPlan {
-  id              String    @id @default(uuid())
-  planNo          String    @unique @map("plan_no")
-  ownerId         String    @map("owner_id")     // 创建计划的用户（商户主体）
-  name            String
-  description     String?
-  amount          Int                              // 每期扣款金额（分）
-  period          String    @default("MONTHLY")    // DAILY/WEEKLY/MONTHLY/YEARLY
-  intervalCount   Int       @default(1) @map("interval_count") // 周期间隔数（如每 3 个月扣一次）
-  trialDays       Int       @default(0) @map("trial_days")      // 试用天数
-  totalCycles     Int?      @map("total_cycles")               // 总期数限制，null 表示无限
-  status          String    @default("ACTIVE")     // ACTIVE/DISABLED
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  id            String   @id @default(uuid())
+  planNo        String   @unique @map("plan_no")
+  ownerId       String   @map("owner_id") // 创建计划的用户（商户主体）
+  name          String
+  description   String?
+  amount        Int // 每期扣款金额（分）
+  period        String   @default("MONTHLY") // DAILY/WEEKLY/MONTHLY/YEARLY
+  intervalCount Int      @default(1) @map("interval_count") // 周期间隔数（如每 3 个月扣一次）
+  trialDays     Int      @default(0) @map("trial_days") // 试用天数
+  totalCycles   Int?     @map("total_cycles") // 总期数限制，null 表示无限
+  status        String   @default("ACTIVE") // ACTIVE/DISABLED
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
-  owner         User              @relation("SubscriptionPlanOwner", fields: [ownerId], references: [id])
+  owner         User           @relation("SubscriptionPlanOwner", fields: [ownerId], references: [id])
   subscriptions Subscription[]
 
   @@index([ownerId])
@@ -748,25 +750,25 @@ model SubscriptionPlan {
 
 /// 用户订阅：订阅者与计划绑定
 model Subscription {
-  id              String    @id @default(uuid())
-  subscriptionNo  String    @unique @map("subscription_no")
-  subscriberId    String    @map("subscriber_id")
-  planId          String    @map("plan_id")
-  status          String    @default("ACTIVE")    // ACTIVE/SUSPENDED/CANCELLED/EXPIRED
-  startAt         DateTime  @map("start_at")
-  currentCycleStart DateTime @map("current_cycle_start")
-  currentCycleEnd   DateTime @map("current_cycle_end")
-  nextChargeAt    DateTime? @map("next_charge_at")
-  endAt           DateTime? @map("end_at")       // 计划结束时间（totalCycles 达到时）
-  cancelledAt     DateTime? @map("cancelled_at")
-  completedCycles Int       @default(0) @map("completed_cycles")
-  lastChargeId    String?   @map("last_charge_id")
-  idempotencyKey  String?   @unique @map("idempotency_key")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  id                String    @id @default(uuid())
+  subscriptionNo    String    @unique @map("subscription_no")
+  subscriberId      String    @map("subscriber_id")
+  planId            String    @map("plan_id")
+  status            String    @default("ACTIVE") // ACTIVE/SUSPENDED/CANCELLED/EXPIRED
+  startAt           DateTime  @map("start_at")
+  currentCycleStart DateTime  @map("current_cycle_start")
+  currentCycleEnd   DateTime  @map("current_cycle_end")
+  nextChargeAt      DateTime? @map("next_charge_at")
+  endAt             DateTime? @map("end_at") // 计划结束时间（totalCycles 达到时）
+  cancelledAt       DateTime? @map("cancelled_at")
+  completedCycles   Int       @default(0) @map("completed_cycles")
+  lastChargeId      String?   @map("last_charge_id")
+  idempotencyKey    String?   @unique @map("idempotency_key")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
-  subscriber User              @relation("SubscriptionSubscriber", fields: [subscriberId], references: [id])
-  plan       SubscriptionPlan  @relation(fields: [planId], references: [id])
+  subscriber User                 @relation("SubscriptionSubscriber", fields: [subscriberId], references: [id])
+  plan       SubscriptionPlan     @relation(fields: [planId], references: [id])
   charges    SubscriptionCharge[] @relation("SubscriptionChargeSubscription")
 
   @@index([subscriberId])
@@ -778,23 +780,23 @@ model Subscription {
 
 /// 订阅扣款记录：每次周期扣款生成一条
 model SubscriptionCharge {
-  id              String    @id @default(uuid())
-  chargeNo        String    @unique @map("charge_no")
-  subscriptionId  String    @map("subscription_id")
-  subscriberId    String    @map("subscriber_id")   // 缓存订阅者 ID，方便查询
-  ownerId         String    @map("owner_id")         // 缓存商户 ID
-  amount          Int
-  cycleStart      DateTime  @map("cycle_start")
-  cycleEnd        DateTime  @map("cycle_end")
-  status          String    @default("PENDING")      // PENDING/SUCCESS/FAILED
-  transactionId   String?   @map("transaction_id")  // 关联 TransactionOrder
-  failureReason   String?   @map("failure_reason")
-  chargedAt       DateTime? @map("charged_at")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  id             String    @id @default(uuid())
+  chargeNo       String    @unique @map("charge_no")
+  subscriptionId String    @map("subscription_id")
+  subscriberId   String    @map("subscriber_id") // 缓存订阅者 ID，方便查询
+  ownerId        String    @map("owner_id") // 缓存商户 ID
+  amount         Int
+  cycleStart     DateTime  @map("cycle_start")
+  cycleEnd       DateTime  @map("cycle_end")
+  status         String    @default("PENDING") // PENDING/SUCCESS/FAILED
+  transactionId  String?   @map("transaction_id") // 关联 TransactionOrder
+  failureReason  String?   @map("failure_reason")
+  chargedAt      DateTime? @map("charged_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   subscription Subscription @relation("SubscriptionChargeSubscription", fields: [subscriptionId], references: [id])
-  owner         User          @relation("SubscriptionCharger", fields: [ownerId], references: [id])
+  owner        User         @relation("SubscriptionCharger", fields: [ownerId], references: [id])
 
   @@index([subscriptionId])
   @@index([subscriberId])
@@ -806,25 +808,25 @@ model SubscriptionCharge {
 
 // 分账订单：把一笔已支付订单的金额按比例/固定金额分给多个接收方
 model SplitOrder {
-  id              String    @id @default(uuid())
-  splitNo         String    @unique @map("split_no")
-  senderId        String    @map("sender_id")
-  sourceOrderNo   String    @map("source_order_no")
-  sourceAmount    Int       @map("source_amount")       // 源订单金额（分）
-  splitAmount     Int       @map("split_amount")        // 实际分账总金额（不含手续费）
-  receiverCount   Int       @default(0) @map("receiver_count")
-  successCount    Int       @default(0) @map("success_count")
-  failedCount     Int       @default(0) @map("failed_count")
-  status          String    @default("PENDING")          // PENDING/PROCESSING/COMPLETED/FAILED/CANCELLED
-  remark          String?
-  idempotencyKey  String?   @unique @map("idempotency_key")
-  completedAt     DateTime? @map("completed_at")
-  cancelledAt     DateTime? @map("cancelled_at")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  id             String    @id @default(uuid())
+  splitNo        String    @unique @map("split_no")
+  senderId       String    @map("sender_id")
+  sourceOrderNo  String    @map("source_order_no")
+  sourceAmount   Int       @map("source_amount") // 源订单金额（分）
+  splitAmount    Int       @map("split_amount") // 实际分账总金额（不含手续费）
+  receiverCount  Int       @default(0) @map("receiver_count")
+  successCount   Int       @default(0) @map("success_count")
+  failedCount    Int       @default(0) @map("failed_count")
+  status         String    @default("PENDING") // PENDING/PROCESSING/COMPLETED/FAILED/CANCELLED
+  remark         String?
+  idempotencyKey String?   @unique @map("idempotency_key")
+  completedAt    DateTime? @map("completed_at")
+  cancelledAt    DateTime? @map("cancelled_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  sender   User         @relation("SplitOrderSender", fields: [senderId], references: [id])
-  items    SplitItem[]
+  sender User        @relation("SplitOrderSender", fields: [senderId], references: [id])
+  items  SplitItem[]
 
   @@index([senderId])
   @@index([status])
@@ -835,19 +837,19 @@ model SplitOrder {
 
 // 分账明细：单个接收方的分账记录
 model SplitItem {
-  id             String    @id @default(uuid())
-  splitId        String    @map("split_id")
-  receiverId     String    @map("receiver_id")
-  amount         Int
-  status         String    @default("PENDING")    // PENDING/SUCCESS/FAILED
-  transactionId  String?   @map("transaction_id")
-  failureReason  String?   @map("failure_reason")
-  completedAt    DateTime? @map("completed_at")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+  id            String    @id @default(uuid())
+  splitId       String    @map("split_id")
+  receiverId    String    @map("receiver_id")
+  amount        Int
+  status        String    @default("PENDING") // PENDING/SUCCESS/FAILED
+  transactionId String?   @map("transaction_id")
+  failureReason String?   @map("failure_reason")
+  completedAt   DateTime? @map("completed_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
-  split     SplitOrder @relation(fields: [splitId], references: [id])
-  receiver  User       @relation("SplitItemReceiver", fields: [receiverId], references: [id])
+  split    SplitOrder @relation(fields: [splitId], references: [id])
+  receiver User       @relation("SplitItemReceiver", fields: [receiverId], references: [id])
 
   @@index([splitId])
   @@index([receiverId])
@@ -857,22 +859,22 @@ model SplitItem {
 
 // 优惠券模板：商家创建的优惠券
 model Coupon {
-  id            String    @id @default(uuid())
-  couponNo      String    @unique @map("coupon_no")
-  ownerId       String    @map("owner_id")
-  name          String
-  type          String    @default("FIXED")     // FIXED 固定金额 / PERCENT 百分比
-  value         Int                                 // FIXED: 分；PERCENT: 百分比（0-100）
-  minAmount     Int       @default(0) @map("min_amount")  // 满减门槛（分）
-  totalQuota    Int       @default(0) @map("total_quota")  // 发放总量，0=不限
-  issuedCount   Int       @default(0) @map("issued_count")
-  perUserLimit  Int       @default(1) @map("per_user_limit")  // 单用户领取上限
-  status        String    @default("ACTIVE")       // ACTIVE/DISABLED
-  expiresAt     DateTime? @map("expires_at")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  id           String    @id @default(uuid())
+  couponNo     String    @unique @map("coupon_no")
+  ownerId      String    @map("owner_id")
+  name         String
+  type         String    @default("FIXED") // FIXED 固定金额 / PERCENT 百分比
+  value        Int // FIXED: 分；PERCENT: 百分比（0-100）
+  minAmount    Int       @default(0) @map("min_amount") // 满减门槛（分）
+  totalQuota   Int       @default(0) @map("total_quota") // 发放总量，0=不限
+  issuedCount  Int       @default(0) @map("issued_count")
+  perUserLimit Int       @default(1) @map("per_user_limit") // 单用户领取上限
+  status       String    @default("ACTIVE") // ACTIVE/DISABLED
+  expiresAt    DateTime? @map("expires_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  owner       User          @relation("CouponOwner", fields: [ownerId], references: [id])
+  owner       User         @relation("CouponOwner", fields: [ownerId], references: [id])
   userCoupons UserCoupon[]
 
   @@index([ownerId])
@@ -882,15 +884,15 @@ model Coupon {
 
 // 用户领取的优惠券实例
 model UserCoupon {
-  id            String    @id @default(uuid())
-  userCouponNo  String    @unique @map("user_coupon_no")
-  couponId      String    @map("coupon_id")
-  userId        String    @map("user_id")
-  status        String    @default("AVAILABLE")  // AVAILABLE/USED/EXPIRED
-  usedAt        DateTime? @map("used_at")
-  usedOrderNo   String?   @map("used_order_no")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  id           String    @id @default(uuid())
+  userCouponNo String    @unique @map("user_coupon_no")
+  couponId     String    @map("coupon_id")
+  userId       String    @map("user_id")
+  status       String    @default("AVAILABLE") // AVAILABLE/USED/EXPIRED
+  usedAt       DateTime? @map("used_at")
+  usedOrderNo  String?   @map("used_order_no")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
 
   coupon Coupon @relation(fields: [couponId], references: [id])
   user   User   @relation("UserCouponUser", fields: [userId], references: [id])
@@ -903,34 +905,34 @@ model UserCoupon {
 
 // 邀请码：每个用户一个唯一邀请码
 model ReferralCode {
-  id          String    @id @default(uuid())
-  code        String    @unique                     // 邀请码（用户可读，大写字母+数字）
-  userId      String    @unique @map("user_id")     // 一人一码
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  id        String   @id @default(uuid())
+  code      String   @unique // 邀请码（用户可读，大写字母+数字）
+  userId    String   @unique @map("user_id") // 一人一码
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  user       User        @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
   @@map("referral_codes")
 }
 
 // 邀请关系：邀请人 + 被邀请人 + 状态 + 奖励
 model Referral {
-  id             String    @id @default(uuid())
-  referralNo     String    @unique @map("referral_no")
-  referrerId     String    @map("referrer_id")     // 邀请人
-  inviteeId      String    @unique @map("invitee_id")  // 被邀请人（一人只能被邀请一次）
-  status         String    @default("PENDING")     // PENDING/COMPLETED/CANCELLED
-  rewardAmount   Int       @default(0) @map("reward_amount")  // 实际奖励金额（分）
-  triggerTxNo    String?   @map("trigger_tx_no")  // 触发奖励的交易订单号
-  completedAt    DateTime? @map("completed_at")
-  cancelledAt    DateTime? @map("cancelled_at")
-  cancelReason   String?   @map("cancel_reason")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+  id           String    @id @default(uuid())
+  referralNo   String    @unique @map("referral_no")
+  referrerId   String    @map("referrer_id") // 邀请人
+  inviteeId    String    @unique @map("invitee_id") // 被邀请人（一人只能被邀请一次）
+  status       String    @default("PENDING") // PENDING/COMPLETED/CANCELLED
+  rewardAmount Int       @default(0) @map("reward_amount") // 实际奖励金额（分）
+  triggerTxNo  String?   @map("trigger_tx_no") // 触发奖励的交易订单号
+  completedAt  DateTime? @map("completed_at")
+  cancelledAt  DateTime? @map("cancelled_at")
+  cancelReason String?   @map("cancel_reason")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  referrer  User   @relation("ReferralReferrer", fields: [referrerId], references: [id])
-  invitee   User   @relation("ReferralInvitee", fields: [inviteeId], references: [id])
+  referrer User @relation("ReferralReferrer", fields: [referrerId], references: [id])
+  invitee  User @relation("ReferralInvitee", fields: [inviteeId], references: [id])
 
   @@index([referrerId])
   @@index([status])
@@ -940,20 +942,20 @@ model Referral {
 
 // 站内消息：支持广播（userId=null）和定向（userId=具体用户）
 model Message {
-  id          String    @id @default(uuid())
-  messageNo   String    @unique @map("message_no")
-  userId      String?   @map("user_id")    // null 表示广播消息
-  category    String    @default("SYSTEM") // SYSTEM/TRANSACTION/PROMOTION/RISK
-  title       String
-  content     String
-  link        String?                       // 可选跳转链接
-  channels    String    @default("IN_APP")  // 推送通道，逗号分隔：IN_APP,SMS,EMAIL
-  priority    String    @default("NORMAL") // LOW/NORMAL/HIGH
-  status      String    @default("SENT")   // SENT/READ/ARCHIVED
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  id        String   @id @default(uuid())
+  messageNo String   @unique @map("message_no")
+  userId    String?  @map("user_id") // null 表示广播消息
+  category  String   @default("SYSTEM") // SYSTEM/TRANSACTION/PROMOTION/RISK
+  title     String
+  content   String
+  link      String? // 可选跳转链接
+  channels  String   @default("IN_APP") // 推送通道，逗号分隔：IN_APP,SMS,EMAIL
+  priority  String   @default("NORMAL") // LOW/NORMAL/HIGH
+  status    String   @default("SENT") // SENT/READ/ARCHIVED
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  user  User?          @relation("MessageUser", fields: [userId], references: [id])
+  user  User?         @relation("MessageUser", fields: [userId], references: [id])
   reads MessageRead[]
 
   @@index([userId])
@@ -965,10 +967,10 @@ model Message {
 
 // 消息已读记录：跟踪用户是否已读广播消息
 model MessageRead {
-  id          String    @id @default(uuid())
-  messageId   String    @map("message_id")
-  userId      String    @map("user_id")
-  readAt      DateTime  @default(now()) @map("read_at")
+  id        String   @id @default(uuid())
+  messageId String   @map("message_id")
+  userId    String   @map("user_id")
+  readAt    DateTime @default(now()) @map("read_at")
 
   message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
   user    User    @relation("MessageReadUser", fields: [userId], references: [id])
@@ -980,22 +982,22 @@ model MessageRead {
 
 // 商户发票 Invoice
 model Invoice {
-  id              String    @id @default(uuid())
-  invoiceNo       String    @unique @map("invoice_no")
-  merchantId      String    @map("merchant_id")
-  type            String    @default("NORMAL")     // NORMAL 普通 / SPECIAL 专用
-  title           String                                // 发票抬头
-  taxNo           String?   @map("tax_no")            // 税号
-  bankName        String?   @map("bank_name")
-  bankAccount     String?   @map("bank_account")
-  address         String?
-  phone           String?
-  amount          Int                                 // 发票金额（分）
-  status          String    @default("PENDING")      // PENDING/ISSUED/CANCELLED
-  issueDate       DateTime? @map("issue_date")
-  remark          String?
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  id          String    @id @default(uuid())
+  invoiceNo   String    @unique @map("invoice_no")
+  merchantId  String    @map("merchant_id")
+  type        String    @default("NORMAL") // NORMAL 普通 / SPECIAL 专用
+  title       String // 发票抬头
+  taxNo       String?   @map("tax_no") // 税号
+  bankName    String?   @map("bank_name")
+  bankAccount String?   @map("bank_account")
+  address     String?
+  phone       String?
+  amount      Int // 发票金额（分）
+  status      String    @default("PENDING") // PENDING/ISSUED/CANCELLED
+  issueDate   DateTime? @map("issue_date")
+  remark      String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
   merchant Merchant @relation(fields: [merchantId], references: [id])
 
@@ -1007,17 +1009,17 @@ model Invoice {
 
 // 风控审计会话：用户与 AI 助手的多轮对话上下文
 model RiskAuditSession {
-  id          String    @id @default(uuid())
-  sessionNo   String    @unique @map("session_no")
-  userId      String    @map("user_id")
-  title       String    @default("风控咨询会话")
-  status      String    @default("ACTIVE")  // ACTIVE / CLOSED
-  summary     String?                           // 会话摘要（关闭时写入）
-  closedAt    DateTime? @map("closed_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  id        String    @id @default(uuid())
+  sessionNo String    @unique @map("session_no")
+  userId    String    @map("user_id")
+  title     String    @default("风控咨询会话")
+  status    String    @default("ACTIVE") // ACTIVE / CLOSED
+  summary   String? // 会话摘要（关闭时写入）
+  closedAt  DateTime? @map("closed_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
 
-  user     User                 @relation("RiskAuditSessionUser", fields: [userId], references: [id])
+  user     User               @relation("RiskAuditSessionUser", fields: [userId], references: [id])
   messages RiskAuditMessage[]
 
   @@index([userId])
@@ -1028,13 +1030,13 @@ model RiskAuditSession {
 
 // 风控审计消息：会话内每条对话记录
 model RiskAuditMessage {
-  id          String    @id @default(uuid())
-  sessionId   String    @map("session_id")
-  role        String                            // USER / ASSISTANT / SYSTEM
-  content     String                            // 消息文本内容
-  intent      String?                           // 识别的意图分类
-  metadata    String?                           // JSON：附加数据（命中的规则、查询结果等）
-  createdAt   DateTime  @default(now()) @map("created_at")
+  id        String   @id @default(uuid())
+  sessionId String   @map("session_id")
+  role      String // USER / ASSISTANT / SYSTEM
+  content   String // 消息文本内容
+  intent    String? // 识别的意图分类
+  metadata  String? // JSON：附加数据（命中的规则、查询结果等）
+  createdAt DateTime @default(now()) @map("created_at")
 
   session RiskAuditSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
@@ -1047,22 +1049,162 @@ model RiskAuditMessage {
 // conditions 字段是 JSON 数组，每个元素 { field, operator, value }
 // logicalOp: AND / OR，决定多条件之间的关系
 model CustomRiskRule {
-  id          String    @id @default(uuid())
-  ruleNo      String    @unique @map("rule_no")
+  id          String   @id @default(uuid())
+  ruleNo      String   @unique @map("rule_no")
   name        String
   description String?
-  enabled     Boolean   @default(true)
-  action      String    @default("BLOCK")           // BLOCK / WARN / REVIEW
-  priority    Int       @default(100)               // 数字越小优先级越高
-  conditions  String                                // JSON: [{field, operator, value}]
-  logicalOp   String    @default("AND") @map("logical_op")             // AND / OR
-  hitCount    Int       @default(0) @map("hit_count")
-  createdBy   String    @map("created_by")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  enabled     Boolean  @default(true)
+  action      String   @default("BLOCK") // BLOCK / WARN / REVIEW
+  priority    Int      @default(100) // 数字越小优先级越高
+  conditions  String // JSON: [{field, operator, value}]
+  logicalOp   String   @default("AND") @map("logical_op") // AND / OR
+  hitCount    Int      @default(0) @map("hit_count")
+  createdBy   String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@index([enabled])
   @@index([priority])
   @@index([action])
   @@map("custom_risk_rules")
+}
+
+// ============================================================================
+// AI 智能体相关模型（v2.1.0 新增）
+// 5 张表：Agent / AgentAuthorization / AgentOperationLog / AgentConversation / AgentMessage
+// 架构原则：① Agent 是独立主体，既不是 user 也不是 admin
+//          ② 用户/商户通过 AgentAuthorization 授权 Agent 代为操作
+//          ③ 所有写操作落 AgentOperationLog 链式 hash 防篡改
+//          ④ 对话历史落 AgentConversation/AgentMessage 支持 RAG 检索
+// ============================================================================
+
+/// AI 智能体身份：每个 Agent 是独立的"数字员工"，有自己的 appSecret 和 scopes
+model Agent {
+  id          String   @id @default(uuid())
+  agentNo     String   @unique @map("agent_no")
+  name        String // 智能体名称（如"钱包管家"）
+  description String?
+  appSecret   String   @map("app_secret") // HMAC 签名密钥（用于 Agent 调用 API）
+  status      String   @default("ACTIVE") // ACTIVE / DISABLED
+  /// scopes 是 JSON 数组，如 ["wallet:read","wallet:write","merchant:read","risk:handle"]
+  /// 配合 PermissionsGuard 做细粒度权限校验
+  scopes      String   @default("[]")
+  /// scenario: wallet(C端钱包管家) / merchant(B端店长助理) / risk(A端风控审计官) / support(客服)
+  scenario    String   @default("wallet")
+  version     String   @default("1.0.0")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  authorizations AgentAuthorization[]
+  operationLogs  AgentOperationLog[]
+  conversations  AgentConversation[]
+
+  @@index([status])
+  @@index([scenario])
+  @@map("agents")
+}
+
+/// 用户/商户对 Agent 的授权记录（OAuth-like delegate 模型）
+/// 一条记录代表"某用户授权了某 Agent 在某 scope 内代为操作"
+model AgentAuthorization {
+  id          String    @id @default(uuid())
+  agentId     String    @map("agent_id")
+  subjectType String // user / merchant
+  subjectId   String    @map("subject_id")
+  /// scopes JSON 数组：["wallet:read","wallet:write:transfer"]，必须是 Agent.scopes 的子集
+  scopes      String
+  /// maxAmount 单笔最大金额（分），null 表示无限制
+  maxAmount   Int?      @map("max_amount")
+  expiresAt   DateTime? @map("expires_at") // 授权有效期，null 表示永久
+  revokedAt   DateTime? @map("revoked_at") // 撤销时间，null 表示有效
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  user  User? @relation("AgentAuthorizationUser", fields: [subjectId], references: [id])
+
+  @@index([agentId, subjectType, subjectId])
+  @@index([subjectType, subjectId])
+  @@map("agent_authorizations")
+}
+
+/// Agent 操作审计日志（链式 hash 防篡改，复用 AdminOperationLog 的设计模式）
+/// 所有 AI 代用户操作的写入动作必须落此表
+model AgentOperationLog {
+  id           String   @id @default(uuid())
+  agentId      String   @map("agent_id")
+  subjectType  String   @map("subject_type") // user / merchant
+  subjectId    String   @map("subject_id")
+  /// action: transfer / refund / create_order / send_red_packet / issue_coupon ...
+  action       String
+  scope        String // wallet:write:transfer 等
+  amount       Int? // 涉及金额（分），非资金操作为 null
+  /// result: SUCCESS / FAILED / PENDING_CONFIRM / REJECTED
+  result       String   @default("SUCCESS")
+  detail       String? // JSON：操作详情
+  /// 链式 hash：sha256(agentId + action + target + detail + previousHash)
+  hash         String
+  previousHash String   @map("previous_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId, createdAt])
+  @@index([subjectType, subjectId])
+  @@index([action, result])
+  @@map("agent_operation_logs")
+}
+
+/// Agent 与用户/商户的多轮对话会话
+/// 每次会话归属一个 scenario，状态机：ACTIVE → CLOSED / ARCHIVED
+model AgentConversation {
+  id        String    @id @default(uuid())
+  convNo    String    @unique @map("conv_no")
+  agentId   String    @map("agent_id")
+  userId    String    @map("user_id")
+  /// scenario: wallet / merchant / risk / support
+  scenario  String
+  title     String    @default("智能助手会话")
+  status    String    @default("ACTIVE") // ACTIVE / CLOSED / ARCHIVED
+  summary   String? // 关闭时 AI 生成的会话摘要
+  /// metadata JSON：会话级别的额外数据（如 merchantId、orderId 等）
+  metadata  String?
+  closedAt  DateTime? @map("closed_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  agent    Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  user     User           @relation("AgentConversationUser", fields: [userId], references: [id], onDelete: Cascade)
+  messages AgentMessage[]
+
+  @@index([userId, status])
+  @@index([agentId, status])
+  @@index([scenario, status])
+  @@index([createdAt])
+  @@map("agent_conversations")
+}
+
+/// Agent 对话消息（OpenAI 风格多角色）
+/// role: USER / ASSISTANT / TOOL / SYSTEM
+model AgentMessage {
+  id         String   @id @default(uuid())
+  convId     String   @map("conv_id")
+  role       String // USER / ASSISTANT / TOOL / SYSTEM
+  content    String // 消息文本
+  /// toolCalls JSON：LLM 请求工具调用的记录 [{id, name, args}]
+  toolCalls  String?  @map("tool_calls")
+  /// toolCallId：role=TOOL 时关联的 tool_call_id
+  toolCallId String?  @map("tool_call_id")
+  /// 使用的 LLM 模型名（如 deepseek-chat），用于成本审计
+  model      String?
+  /// 输入 + 输出 token 数
+  tokens     Int?
+  /// metadata JSON：附加数据（如命中的工具、调用时长、token 成本）
+  metadata   String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  conversation AgentConversation @relation(fields: [convId], references: [id], onDelete: Cascade)
+
+  @@index([convId, createdAt])
+  @@index([role])
+  @@map("agent_messages")
 }
