@@ -1,4 +1,4 @@
-import { Injectable, Logger, UnauthorizedException, ForbiddenException } from '@nestjs/common'
+import { Injectable, Logger, UnauthorizedException, ForbiddenException, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import type { LlmTool } from '../llm/llm.service'
 import type { AgentCurrentUser } from '../agent-current-user.interface'
@@ -49,6 +49,32 @@ export class ToolRegistry {
     }
   }
 
+  /** 校验 subjectId 非空（防止 Token 缺失 subjectId 时的越权） */
+  private requireSubjectId(ctx: AgentCurrentUser): string {
+    if (!ctx.subjectId) {
+      throw new ForbiddenException(kbError(KBErrorCodes.AGENT_AUTHORIZATION_REVOKED, '智能体未绑定用户主体'))
+    }
+    return ctx.subjectId
+  }
+
+  /** 校验金额（元）：非负、有限、在合理范围内 */
+  private validateAmountYuan(amount: any): number {
+    const n = Number(amount)
+    if (!Number.isFinite(n) || n < 0.01) {
+      throw new BadRequestException(kbError(KBErrorCodes.INVALID_PARAMETER, '金额必须为不小于 0.01 的正数'))
+    }
+    if (n > 500000) {
+      throw new BadRequestException(kbError(KBErrorCodes.INVALID_PARAMETER, '单笔金额不能超过 50 万元'))
+    }
+    return n
+  }
+
+  /** 限制字符串长度，防止 DoS / 存储膨胀 */
+  private truncate(str: any, max: number): string {
+    if (typeof str !== 'string') return ''
+    return str.slice(0, max)
+  }
+
   /** ========== C 端钱包管家工具 ========== */
   private walletTools(ctx: AgentCurrentUser, deps: ToolDeps): LlmTool[] {
     return [
@@ -59,8 +85,9 @@ export class ToolRegistry {
         requireConfirm: false,
         execute: async () => {
           this.checkScope(ctx, 'wallet:read')
+          const subjectId = this.requireSubjectId(ctx)
           const account = await this.prisma.account.findUnique({
-            where: { userId: ctx.subjectId },
+            where: { userId: subjectId },
             select: { availableBalance: true, frozenBalance: true, totalBalance: true },
           })
           return {
@@ -77,18 +104,19 @@ export class ToolRegistry {
         inputSchema: {
           type: 'object',
           properties: {
-            days: { type: 'number', description: '查询最近多少天，默认 30' },
+            days: { type: 'number', description: '查询最近多少天，默认 30，最大 365' },
             limit: { type: 'number', description: '返回条数，默认 20' },
           },
         },
         requireConfirm: false,
         execute: async (args: any) => {
           this.checkScope(ctx, 'wallet:read')
-          const days = args?.days ?? 30
+          const subjectId = this.requireSubjectId(ctx)
+          const days = Math.min(Math.max(1, Number(args?.days) || 30), 365)
           const limit = Math.min(args?.limit ?? 20, 100)
           const since = new Date(Date.now() - days * 86400_000)
           const bills = await this.prisma.bill.findMany({
-            where: { userId: ctx.subjectId, createdAt: { gte: since } },
+            where: { userId: subjectId, createdAt: { gte: since } },
             orderBy: { createdAt: 'desc' },
             take: limit,
             select: {
@@ -122,11 +150,17 @@ export class ToolRegistry {
         requireConfirm: false,
         execute: async (args: any) => {
           this.checkScope(ctx, 'wallet:notify')
+          const subjectId = this.requireSubjectId(ctx)
+          const title = this.truncate(args?.title, 100)
+          const content = this.truncate(args?.content, 2000)
+          if (!title || !content) {
+            throw new BadRequestException(kbError(KBErrorCodes.INVALID_PARAMETER, '标题和内容不能为空'))
+          }
           return deps.messagesService.sendMessage({
-            userId: ctx.subjectId!,
+            userId: subjectId,
             category: 'SYSTEM',
-            title: args.title,
-            content: args.content,
+            title,
+            content,
             channels: 'IN_APP',
             priority: args.priority ?? 'NORMAL',
           })
@@ -145,7 +179,12 @@ export class ToolRegistry {
         requireConfirm: false,
         execute: async (args: any) => {
           this.checkScope(ctx, 'wallet:write:coupon')
-          return deps.couponsService.claim(ctx.subjectId!, args.couponNo)
+          const subjectId = this.requireSubjectId(ctx)
+          const couponNo = this.truncate(args?.couponNo, 64)
+          if (!couponNo) {
+            throw new BadRequestException(kbError(KBErrorCodes.INVALID_PARAMETER, '优惠券编号不能为空'))
+          }
+          return deps.couponsService.claim(subjectId, couponNo)
         },
       },
       {
@@ -154,20 +193,30 @@ export class ToolRegistry {
         inputSchema: {
           type: 'object',
           properties: {
-            toUserId: { type: 'string' },
-            amountYuan: { type: 'number', description: '金额（元）' },
-            remark: { type: 'string' },
+            toUserId: { type: 'string', description: '收款用户ID' },
+            amountYuan: { type: 'number', description: '金额（元），必须为正数且 ≤ 500000' },
+            remark: { type: 'string', description: '转账备注，最多 200 字' },
           },
           required: ['toUserId', 'amountYuan'],
         },
         requireConfirm: true,
         execute: async (args: any) => {
           this.checkScope(ctx, 'wallet:write:transfer')
+          this.requireSubjectId(ctx)
+          // 金额边界校验：防止负数、零、超大、非数字金额进入确认流程
+          const amountYuan = this.validateAmountYuan(args?.amountYuan)
+          // 收款人 ID 校验
+          const toUserId = this.truncate(args?.toUserId, 64)
+          if (!toUserId || toUserId === ctx.subjectId) {
+            throw new BadRequestException(kbError(KBErrorCodes.INVALID_PARAMETER, '收款人ID无效或不能向自己转账'))
+          }
+          // 备注长度限制
+          const remark = this.truncate(args?.remark, 200)
           // 该工具实际执行由 confirm 流程触发，这里只返回待确认信息
           return {
             pending: true,
-            message: `准备向用户 ${args.toUserId} 转账 ${args.amountYuan} 元，等待用户确认`,
-            payload: args,
+            message: `准备向用户 ${toUserId} 转账 ${amountYuan} 元，等待用户确认`,
+            payload: { toUserId, amountYuan, remark },
           }
         },
       },
@@ -234,7 +283,7 @@ export class ToolRegistry {
       },
       {
         name: 'kbpay_query_reconciliation_diff',
-        description: '查询对账差异项列表',
+        description: '查询当前商户的对账差异项列表',
         inputSchema: {
           type: 'object',
           properties: {
@@ -245,9 +294,13 @@ export class ToolRegistry {
         requireConfirm: false,
         execute: async (args: any) => {
           this.checkScope(ctx, 'merchant:read')
+          const subjectId = this.requireSubjectId(ctx)
           const limit = Math.min(args?.limit ?? 20, 100)
+          // 安全修复：必须按 merchantId 过滤，防止跨租户数据泄露（IDOR）
+          const where: any = { merchantId: subjectId }
+          if (args?.status) where.status = args.status
           const diffs = await this.prisma.reconciliationDifferenceItem.findMany({
-            where: args?.status ? { status: args.status } : undefined,
+            where,
             orderBy: { createdAt: 'desc' },
             take: limit,
           })

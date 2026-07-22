@@ -717,9 +717,22 @@ npm run lint           # TypeScript 类型检查
 
 ## 十六、License
 
-ISC © 科佰网络技术有限公司
+MIT License — 详见 [LICENSE](./LICENSE)
 
-## 十七、技术支持
+Copyright (c) 2026 KeBaiPay Contributors
+
+## 十七、贡献者
+
+本项目由以下人员共同维护：
+
+| GitHub | 角色 | 主要贡献 |
+|---|---|---|
+| [@weed33834](https://github.com/weed33834) | 项目负责人 / 架构师 | 整体架构、资金安全、API 契约、风控引擎、AI 智能体设计 |
+| [@KEBAI-CN](https://github.com/KEBAI-CN) | 联合开发者 | 功能开发、测试用例、文档维护、前端实现、LLM 接入联调 |
+
+详见 [CONTRIBUTING.md](./CONTRIBUTING.md) 和 [docs/TEAM.md](docs/TEAM.md)。
+
+## 十八、技术支持
 
 - API 文档（开发环境）：http://your-server:3000/api/docs
 - 完整文档：[docs/](docs/) 目录

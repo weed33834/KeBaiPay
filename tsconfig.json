@@ -20,5 +20,5 @@
     "esModuleInterop": true,
     "ignoreDeprecations": "6.0"
   },
-  "exclude": ["node_modules", "dist", "test", "prisma", "prisma.config.ts", "**/*.spec.ts", "jest.config.js"]
+  "exclude": ["node_modules", "dist", "test", "scripts", "prisma", "prisma.config.ts", "**/*.spec.ts", "jest.config.js"]
 }

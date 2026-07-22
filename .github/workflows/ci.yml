@@ -1,0 +1,49 @@
+# 最小 CI 配置 — 仅运行类型检查和单元测试
+# 不启用：Dependabot / Renovate / 自动合并 / 机器人 / 自动依赖升级
+# 人工管理所有依赖更新和合并
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# 权限最小化
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Run unit tests
+        run: npm test -- --passWithNoTests
+        env:
+          NODE_ENV: test
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/test?schema=public"
+          REDIS_URL: "redis://localhost:6379"
+          JWT_USER_SECRET: "ci-test-secret-user-32chars-padding"
+          JWT_ADMIN_SECRET: "ci-test-secret-admin-32chars-padding"
+          JWT_AGENT_SECRET: "ci-test-secret-agent-32chars-padding"
+          ADMIN_DEFAULT_PASSWORD: "CiTest2026"
+          ENCRYPTION_KEY: "ci-test-encryption-key-32-chars-ok"
+          MOCK_CHANNEL_SECRET: "ci-test-mock-secret"

@@ -2,8 +2,8 @@
   "name": "kebaipay",
   "version": "2.1.0",
   "description": "KeBaiPay 科佰支付 - 个人钱包 + 商户收款 + 开放 API + 多平台对账聚合 + AI 智能体层平台（NestJS 11 + Prisma 7 + PostgreSQL 16 + Redis 7 + Vercel AI SDK v6 + MCP）",
-  "author": "科佰网络技术有限公司",
-  "license": "ISC",
+  "author": "KeBaiPay Contributors",
+  "license": "MIT",
   "private": true,
   "engines": {
     "node": ">=20.0.0"
@@ -119,9 +119,12 @@
     "reconciliation",
     "fintech"
   ],
-  "homepage": "https://github.com/kebaipay/kebaipay",
+  "homepage": "https://github.com/weed33834/KeBaiPay",
   "repository": {
     "type": "git",
-    "url": "https://github.com/kebaipay/kebaipay.git"
+    "url": "https://github.com/weed33834/KeBaiPay.git"
+  },
+  "bugs": {
+    "url": "https://github.com/weed33834/KeBaiPay/issues"
   }
 }
