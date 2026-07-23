@@ -1,8 +1,10 @@
+# KeBaiPay
+
+[English](README.md) | [中文](README.zh.md) | [日本語](README.ja.md)
+
+> Open-source unified payment platform — personal wallet + merchant collection + open API + multi-channel reconciliation + AI agent layer
+
 <div align="center">
-
-# KeBaiPay 科佰支付
-
-**开源一体化支付中台 — 个人钱包 + 商户收款 + 开放 API + 多平台对账聚合 + AI 智能体**
 
 <p>
   <a href="https://github.com/weed33834/KeBaiPay/actions"><img alt="CI" src="https://github.com/weed33834/KeBaiPay/actions/workflows/ci.yml/badge.svg" /></a>
@@ -18,199 +20,179 @@
   <img alt="PRs Welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" />
 </p>
 
-🚀 版本 2.1.0 | 214 个 API 端点 | 52 个 Prisma 模型 | 1023 单元测试 + 39 E2E
+Version 2.1.0 · 214 API endpoints · 52 Prisma models · 1023 unit tests + 39 E2E
 
-📡 **双平台镜像同步**：[GitHub（国际）](https://github.com/weed33834/KeBaiPay) · [gitcode（国内）](https://gitcode.com/badhope/KeBaiPay)
+Mirrored on two platforms: [GitHub (international)](https://github.com/weed33834/KeBaiPay) · [gitcode (China)](https://gitcode.com/badhope/KeBaiPay)
 
-[功能矩阵](#二功能矩阵) · [快速开始](#三快速开始5-分钟) · [架构图](#五系统架构) · [API 文档](docs/API_REFERENCE.md) · [部署指南](docs/DEPLOYMENT.md)
+[Feature matrix](#feature-matrix) · [Quick start](#quick-start) · [Architecture](#architecture) · [API docs](docs/API_REFERENCE.md) · [Deployment](docs/DEPLOYMENT.md)
 
 </div>
 
-<details>
-<summary><b>🔍 搜索关键词（展开查看）</b></summary>
-
-```
-开源支付系统 | 支付中台 | payment gateway | payment platform | payment processing
-NestJS 支付 | Prisma 支付 | TypeScript 支付 | Node.js 支付
-个人钱包 | 商户收款 | 收银台 | 收款码 | 开放 API | HMAC 签名
-微信支付 | 支付宝 | PayPal | Stripe | Ping++ | 对标参考
-担保交易 | escrow | 分账 | split | 订阅 | subscription | 批量转账
-红包 | red packet | 二倍均值法 | 优惠券 | coupon | 邀请返现 | referral
-对账 | reconciliation | 多平台对账 | 风控 | risk control | 审计 | audit
-AI 智能体 | AI Agent | Vercel AI SDK | MCP | LLM | 大模型
-DeepSeek | ChatGPT | Claude Desktop | Cursor | Trae
-PostgreSQL | Redis | 复式记账 | 分布式锁 | 链式 hash | JWT | AES-256-GCM
-可私有化部署 | self-hosted | 私有化部署 | docker-compose | open source payment
-中国支付 | china payment | 中文支付系统 | 国产支付系统
-```
-
-</details>
-
 ---
 
-## 一、项目简介
+## Overview
 
-**KeBaiPay（科佰支付）** 是一个面向中小商户、个人钱包场景的**开源一体化支付中台**，采用 **复式记账模型**、**Redis 分布式锁防并发**、**Prisma 事务保证 ACID**，并内置风控引擎、对账引擎、AI 风控审计、AI 智能体层等高级特性。**对标微信支付 / 支付宝 / PayPal / Stripe / Ping++**，支持私有化部署，让商户完全掌控资金数据与密钥。
+**KeBaiPay** is an open-source unified payment platform designed for small and mid-sized merchants and personal wallet scenarios. The system implements a double-entry bookkeeping model, Redis distributed locks for concurrency control, and Prisma transactions for ACID guarantees, with a built-in risk-control engine, reconciliation engine, AI risk audit, and an AI agent layer. It supports self-hosted deployment, letting merchants retain full control over funds data and secrets. The business flows are modeled after mainstream payment platforms such as WeChat Pay, Alipay, PayPal, Stripe, and Ping++.
 
-### 适用场景
+### Target audience
 
-- **中小商户 / 创业团队**：需要一个完整、可私有化部署的支付中台，避免被 SaaS 锁定
-- **支付领域学习者**：参考复式记账、分布式锁、链式 hash 审计、AI Agent 等真实工程实践
-- **AI Agent 开发者**：基于 MCP 协议接入支付能力，构建钱包管家 / 店长助理等智能体
-- **国内开发者**：对标微信支付 / 支付宝业务流程，提供中文文档与 gitcode 国内镜像
+- **Small and mid-sized merchants / startup teams** needing a complete, self-hostable payment platform to avoid SaaS lock-in
+- **Payment domain learners** studying engineering practices such as double-entry bookkeeping, distributed locks, chained-hash audit, and AI agents
+- **AI agent developers** integrating payment capabilities over the MCP protocol to build wallet assistants or store-manager agents
+- **Developers in mainland China** comparing against WeChat Pay / Alipay flows, with Chinese docs and a gitcode mirror
 
-### 核心亮点
+### Key features
 
-- **214 个 API 端点**，覆盖钱包、商户、开放 API、管理后台、AI 智能体全场景
-- **52 个 Prisma 数据模型**，15 个业务域 + 1 个 AI 智能体域分组
-- **4 种认证方式**：用户 JWT / 管理员 JWT / 商户 HMAC / Agent JWT（独立 JWT_AGENT_SECRET）
-- **复式记账三表联动**（AccountLedger + Bill + TransactionOrder）保证资金可追溯
-- **多平台对账聚合**（S5）：跨支付宝/微信/银行渠道流水交叉比对，差异自动分类
-- **AI 风控审计**（S3）：基于规则+AI 双引擎审计管理员操作，链式 hash 防篡改
-- **AI 智能体层**（v2.1.0 新增）：基于 Vercel AI SDK v7 + MCP，支持 C 端钱包管家 / B 端店长助理 / A 端风控审计官三大场景
-- **Human-in-the-Loop 资金安全**：Agent 资金类操作强制二次确认（PENDING_CONFIRM → 用户决策 → SUCCESS/REJECTED）
-- **MCP Server**：把 KeBaiPay 能力暴露给外部 AI Agent（Claude Desktop / Cursor / Trae）
-- **担保交易**（S2）：买卖双方中介担保，与支付宝/微信担保支付逻辑对齐
-- **微信红包二倍均值法**（S1）：群红包算法与微信原生体验一致
-- **1023 个单元测试 + 39 个 E2E 测试（Jest）+ 1789 行 Python E2E 脚本** 全覆盖
+- **214 API endpoints** covering wallets, merchants, open API, admin console, and the AI agent layer
+- **52 Prisma data models**, grouped into 15 business domains plus 1 AI agent domain
+- **4 authentication schemes**: user JWT / admin JWT / merchant HMAC / agent JWT (with a separate `JWT_AGENT_SECRET`)
+- **Double-entry bookkeeping tri-table linkage** (`AccountLedger` + `Bill` + `TransactionOrder`) for full fund traceability
+- **Multi-channel reconciliation aggregation (S5)**: cross-matching Alipay / WeChat / bank statements with automatic discrepancy classification
+- **AI risk audit (S3)**: rule + AI dual-engine auditing of admin operations, with chained-hash tamper protection
+- **AI agent layer (v2.1.0)**: built on Vercel AI SDK v7 + MCP, supporting three scenarios — C-side wallet assistant, B-side store-manager assistant, and A-side risk auditor
+- **Human-in-the-loop fund safety**: agent fund operations require a second confirmation (`PENDING_CONFIRM → user decision → SUCCESS/REJECTED`)
+- **MCP server**: exposes KeBaiPay capabilities to external AI agents (Claude Desktop / Cursor / Trae)
+- **Escrow transactions (S2)**: buyer-seller intermediary escrow, aligned with Alipay / WeChat escrow logic
+- **WeChat red-packet double-mean algorithm (S1)**: group red-packet logic identical to the native WeChat experience
+- **1023 unit tests + 39 E2E tests (Jest) + 1789-line Python E2E script**
 
-### 技术栈速览
+### Tech stack
 
-| 层 | 技术选型 | 说明 |
+| Layer | Choice | Notes |
 |---|---|---|
-| 运行时 | Node.js ≥ 20 | NestJS 11 + TypeScript 6 要求 |
-| 框架 | NestJS 11 | 模块化 + DI + 装饰器 |
-| ORM | Prisma 7 | 类型安全 + 迁移机制 |
-| 数据库 | PostgreSQL 16/17 | 主库，不支持 SQLite |
-| 缓存 | Redis 7 | 分布式锁 + 滑动窗口限流 + 防重放 |
-| 认证 | JWT + HMAC-SHA256 | 用户/管理员/Agent JWT 独立密钥；商户开放 API HMAC 签名 |
-| 加密 | AES-256-GCM | 身份证、银行卡等敏感字段 |
-| 风控 | 自研规则引擎 + AI 审计 | 滑动窗口 Lua + 链式 hash 日志 |
-| **AI Agent** | **Vercel AI SDK v7 + MCP** | **v2.1.0 新增：LLM 调用 + 工具循环 + MCP Server** |
-| 部署 | Docker Compose / 裸机 | PM2 进程管理可选；n8n + Botpress 独立编排 |
-| 监控 | OpenTelemetry + Prometheus + Sentry | OTLP trace + metrics 端点 |
+| Runtime | Node.js ≥ 20 | Required by NestJS 11 + TypeScript 6 |
+| Framework | NestJS 11 | Modules + DI + decorators |
+| ORM | Prisma 7 | Type-safe + migration mechanism |
+| Database | PostgreSQL 16/17 | Primary store; SQLite not supported |
+| Cache | Redis 7 | Distributed lock + sliding-window rate limit + replay protection |
+| Auth | JWT + HMAC-SHA256 | Separate JWT secrets for users/admins/agents; merchant open API uses HMAC signing |
+| Encryption | AES-256-GCM | For ID cards, bank cards, and other sensitive fields |
+| Risk control | In-house rule engine + AI audit | Sliding-window Lua + chained-hash logs |
+| AI agent | Vercel AI SDK v7 + MCP | Added in v2.1.0: LLM calls + tool loop + MCP server |
+| Deployment | Docker Compose / bare metal | PM2 optional; n8n + Botpress orchestration separate |
+| Observability | OpenTelemetry + Prometheus + Sentry | OTLP trace + metrics endpoint |
 
 ---
 
-## 二、功能矩阵
+## Feature matrix
 
-### 用户端（C 端）
+### Consumer side (C-side)
 
-| 模块 | 关键能力 | 接口数 |
+| Module | Capabilities | Endpoints |
 |---|---|---:|
-| 认证 | 手机号/邮箱注册、登录、JWT 鉴权 | 2 |
-| 用户 | 实名认证、支付密码、绑定手机/邮箱、改密 | 6 |
-| 账户 | 余额查询、资金流水、按方向筛选 | 1 |
-| 交易 | 账户充值、回调通知 | 1 |
-| 转账 | 用户间转账、幂等键防重 | 1 |
-| 提现 | 申请提现、查询记录 | 2 |
-| 红包 | 发/领红包、已发/已收列表 | 4 |
-| 收款码 | 个人/固定金额收款码、扫码付款 | 3 |
-| 账单 | 列表查询、收支筛选 | 1 |
-| 银行卡 | 绑卡、解绑、设默认卡 | 4 |
-| 担保交易 | 创建担保订单、买家付款、卖家发货、确认收货、申请退款、争议处理 | 6 |
-| 批量转账 | 批量提交、明细查询、状态机管理 | 3 |
-| 订阅 | 订阅/取消订阅、查看订阅详情、查看可订阅计划 | 3 |
-| 分账 | 创建分账计划、查询分账列表 | 2 |
-| 优惠券 | 领取优惠券、查询我的优惠券 | 2 |
-| 邀请返现 | 获取邀请码、查询邀请记录 | 2 |
-| 消息中心 | 消息列表、未读数、标记已读 | 3 |
-| 发票 | 申请开票、查询开票记录 | 2 |
+| Auth | Phone/email registration, login, JWT auth | 2 |
+| Users | KYC, payment password, bind phone/email, change password | 6 |
+| Accounts | Balance query, fund flows, filter by direction | 1 |
+| Transactions | Top-up, callback notification | 1 |
+| Transfers | User-to-user transfers, idempotency-key dedup | 1 |
+| Withdrawals | Submit withdrawal, query history | 2 |
+| Red packets | Send/claim, sent/received lists | 4 |
+| QR codes | Personal / fixed-amount collection codes, scan-to-pay | 3 |
+| Bills | List query, income/expense filter | 1 |
+| Bank cards | Bind/unbind, set default card | 4 |
+| Escrow | Create order, buyer pay, seller ship, confirm receipt, refund request, dispute | 6 |
+| Batch transfers | Batch submit, detail query, state machine | 3 |
+| Subscriptions | Subscribe/cancel, view detail, list plans | 3 |
+| Splits | Create split plan, query split list | 2 |
+| Coupons | Claim coupon, view my coupons | 2 |
+| Referrals | Get referral code, query referral history | 2 |
+| Messages | Message list, unread count, mark read | 3 |
+| Invoices | Apply for invoice, query history | 2 |
 
-### 商户端（B 端）
+### Merchant side (B-side)
 
-| 模块 | 关键能力 | 接口数 |
+| Module | Capabilities | Endpoints |
 |---|---|---:|
-| 商户管理 | 入驻申请、资料更新、应用创建/重置密钥、看板、收款码 | 9 |
-| 收银台 | 创建订单、查询、支付、对账、导出 CSV、扫码 | 7 |
-| 开放 API | HMAC 签名认证：创建订单、查询、退款、转账、查余额 | 5 |
+| Merchant management | Onboarding, profile update, app create / key reset, dashboard, collection codes | 9 |
+| Cashier | Create order, query, pay, reconcile, export CSV, scan | 7 |
+| Open API | HMAC-signed: create order, query, refund, transfer, query balance | 5 |
 
-### 管理后台（A 端）
+### Admin console (A-side)
 
-| 模块 | 关键能力 | 接口数 |
+| Module | Capabilities | Endpoints |
 |---|---|---:|
-| 管理员认证 | 登录、改密 | 2 |
-| 数据看板 | 平台概览 | 1 |
-| 用户管理 | 列表/详情/状态/风控等级 | 4 |
-| 商户管理 | 列表/审核/配置 | 3 |
-| 实名审核 | 待审列表、通过/拒绝 | 3 |
-| 提现审核 | 列表、通过/拒绝 | 3 |
-| 支付订单 | 列表查询 | 1 |
-| 风控事件 | 列表、处理 | 2 |
-| 风控规则 | 列表、更新 | 2 |
-| 风控日志 | 登录日志、审计日志 | 2 |
-| 人工调账 | 账户余额调整 | 1 |
-| 系统配置 | 获取/设置 | 2 |
-| 支付渠道 | 创建/更新/删除/测试 | 4 |
-| 管理员管理 | 创建/更新/删除/重置密码 | 4 |
-| 财务统计 | 概览/汇总/结算/手续费/快照/导出 | 14 |
-| 对账管理 | 执行对账、报告列表/导出/详情 | 4 |
-| **多平台对账聚合（S5）** | 拉取对账单、交叉匹配、差异处理工作流 | 9 |
-| **AI 风控审计（S3）** | AI 审计事件、风控建议、人工复核 | 5 |
-| **自定义规则** | 风控规则模板 CRUD | 5 |
+| Admin auth | Login, change password | 2 |
+| Dashboard | Platform overview | 1 |
+| User management | List/detail/status/risk level | 4 |
+| Merchant management | List/audit/config | 3 |
+| KYC review | Pending list, approve/reject | 3 |
+| Withdrawal review | List, approve/reject | 3 |
+| Payment orders | List query | 1 |
+| Risk events | List, handle | 2 |
+| Risk rules | List, update | 2 |
+| Risk logs | Login logs, audit logs | 2 |
+| Manual adjustment | Account balance adjustment | 1 |
+| System config | Get/set | 2 |
+| Payment channels | Create/update/delete/test | 4 |
+| Admin management | Create/update/delete/reset password | 4 |
+| Finance stats | Overview/summary/settlement/fees/snapshot/export | 14 |
+| Reconciliation | Run reconciliation, report list/export/detail | 4 |
+| Multi-channel reconciliation (S5) | Fetch statements, cross-match, discrepancy workflow | 9 |
+| AI risk audit (S3) | AI audit events, risk suggestions, manual review | 5 |
+| Custom rules | Risk rule template CRUD | 5 |
 
-### 跨端公共
+### Cross-side common
 
-| 模块 | 关键能力 | 接口数 |
+| Module | Capabilities | Endpoints |
 |---|---|---:|
-| 健康检查 | 存活/就绪/渠道/调度 | 4 |
-| 指标监控 | Prometheus /metrics | 1 |
-| 短信 | 发送验证码 | 1 |
+| Health check | Liveness / readiness / channels / schedules | 4 |
+| Metrics | Prometheus `/metrics` | 1 |
+| SMS | Send verification code | 1 |
 
-### AI 智能体层（v2.1.0 新增）
+### AI agent layer (v2.1.0)
 
-| 模块 | 关键能力 | 接口数 |
+| Module | Capabilities | Endpoints |
 |---|---|---:|
-| Agent 认证 | 第 4 种认证 AgentAuthGuard（独立 JWT_AGENT_SECRET） | - |
-| 会话管理 | 创建/查询/关闭会话 | 4 |
-| 智能对话 | 发送消息 + LLM 调用 + 工具循环（核心入口） | 1 |
-| 资金确认 | 二次确认/拒绝待确认操作（Human-in-the-Loop） | 1 |
-| 授权管理 | 用户授权 Agent、撤销授权、查询授权列表 | 3 |
-| 审计校验 | Agent 操作哈希链完整性校验 | 1 |
-| **C 端钱包管家** | kbpay_query_balance / query_bill / send_message / claim_coupon / transfer（强制确认） | 5 工具 |
-| **B 端店长助理** | kbpay_query_merchant_orders / query_merchant_balance / query_reconciliation_diff | 3 工具 |
-| **A 端风控审计官** | kbpay_query_risk_events / query_health / query_reconciliation_diffs | 3 工具 |
-| **MCP Server** | 把 KeBaiPay 能力暴露给外部 AI Agent（Claude Desktop / Cursor / Trae） | 5 工具 |
-| **AI 巡检调度** | 系统健康/对账差异/风控事件 3 个 @Cron 任务 | - |
+| Agent auth | 4th auth scheme `AgentAuthGuard` (separate `JWT_AGENT_SECRET`) | - |
+| Session management | Create/query/close sessions | 4 |
+| Chat | Send message + LLM call + tool loop (core entry) | 1 |
+| Fund confirmation | Confirm/reject pending operations (Human-in-the-Loop) | 1 |
+| Authorization | User authorizes agent, revoke, list authorizations | 3 |
+| Audit verification | Agent operation hash-chain integrity check | 1 |
+| C-side wallet assistant | `kbpay_query_balance` / `query_bill` / `send_message` / `claim_coupon` / `transfer` (confirm required) | 5 tools |
+| B-side store assistant | `kbpay_query_merchant_orders` / `query_merchant_balance` / `query_reconciliation_diff` | 3 tools |
+| A-side risk auditor | `kbpay_query_risk_events` / `query_health` / `query_reconciliation_diffs` | 3 tools |
+| MCP server | Exposes KeBaiPay capabilities to external AI agents (Claude Desktop / Cursor / Trae) | 5 tools |
+| AI inspection schedule | 3 `@Cron` jobs for system health / reconciliation diffs / risk events | - |
 
 ---
 
-## 三、快速开始（5 分钟）
+## Quick start
 
-### 方式 A：Docker Compose（推荐）
+### Option A: Docker Compose (recommended)
 
 ```bash
-# 1. 拷代码到服务器（任选其一，国内服务器推荐 gitcode 镜像）
-# GitHub（国际）：
+# 1. Clone the repository (choose one; gitcode is faster from mainland China)
+# GitHub (international):
 git clone https://github.com/weed33834/KeBaiPay.git
-# gitcode（国内，访问更快）：
+# gitcode (China):
 git clone https://gitcode.com/badhope/KeBaiPay.git
 cd KeBaiPay
 
-# 2. 配置环境变量（必须改 6 个 secret）
+# 2. Configure environment variables (6 secrets must be changed)
 cp .env.example .env
-# 编辑 .env，把所有 "change-...-in-production" 替换为强密钥
-# 至少修改：POSTGRES_PASSWORD / JWT_USER_SECRET / JWT_ADMIN_SECRET /
-#           ADMIN_DEFAULT_PASSWORD / ENCRYPTION_KEY / REDIS_PASSWORD
+# Edit .env, replace all "change-...-in-production" placeholders with strong secrets
+# At minimum: POSTGRES_PASSWORD / JWT_USER_SECRET / JWT_ADMIN_SECRET /
+#             ADMIN_DEFAULT_PASSWORD / ENCRYPTION_KEY / REDIS_PASSWORD
 
-# 3. 一键启动（首次约 3-5 分钟拉镜像 + 构建）
+# 3. Start (first run takes ~3-5 min to pull images and build)
 docker compose up -d --build
 
-# 4. 初始化管理员账号
+# 4. Initialize the admin account
 docker compose exec app npx prisma db seed
 
-# 5. 验证
+# 5. Verify
 curl http://localhost:3000/health/ready
-# {"status":"ok",...} 即成功
+# {"status":"ok",...} means success
 ```
 
-### 方式 B：裸机部署
+### Option B: Bare metal
 
 ```bash
-# 环境要求：Node.js ≥ 20 / PostgreSQL ≥ 16 / Redis ≥ 7
+# Requirements: Node.js >= 20 / PostgreSQL >= 16 / Redis >= 7
 npm ci
 cp .env.example .env
-# 编辑 .env，DATABASE_URL 指向你的 PG，REDIS_URL 指向你的 Redis
+# Edit .env: DATABASE_URL points to your PG, REDIS_URL to your Redis
 
 npx prisma generate
 npx prisma migrate deploy
@@ -219,59 +201,60 @@ npm run build
 NODE_ENV=production node dist/main.js
 ```
 
-### 方式 C：本地开发
+### Option C: Local development
 
 ```bash
-docker compose -f docker-compose.dev.yml up -d   # 启 PG + Redis
+docker compose -f docker-compose.dev.yml up -d   # start PG + Redis
 npm install
 cp .env.example .env
 npx prisma migrate dev
-npm run start:dev    # 热重载
+npm run start:dev    # hot reload
 ```
 
-访问入口：
-- H5 钱包：`http://localhost:3000/`
-- 管理员登录：`http://localhost:3000/#adminLogin`
-- Swagger 文档：`http://localhost:3000/api/docs`（仅非生产环境）
+Entry points:
+
+- H5 wallet: `http://localhost:3000/`
+- Admin login: `http://localhost:3000/#adminLogin`
+- Swagger docs: `http://localhost:3000/api/docs` (non-production only)
 
 ---
 
-## 四、首次使用教程
+## First-use tutorial
 
-### 4.1 用户注册与实名
+### 4.1 User registration and KYC
 
 ```bash
-# 注册新用户
+# Register a new user
 curl -X POST http://localhost:3000/auth/register \
   -H "Content-Type: application/json" \
   -d '{
-    "nickname": "张三",
+    "nickname": "Zhang San",
     "phone": "13800138000",
     "password": "Password123"
   }'
 
-# 响应：返回 access_token，前端保存到 localStorage
+# Response: returns access_token; the front end stores it in localStorage
 ```
 
 ```bash
-# 提交实名认证（需登录，把 <token> 换成上一步的 access_token）
+# Submit KYC (login required; replace <token> with the access_token above)
 curl -X POST http://localhost:3000/users/verify-identity \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
-    "realName": "张三",
+    "realName": "Zhang San",
     "idCard": "110101199001011234"
   }'
 
-# 管理员审核通过后才能使用资金功能
+# Fund features become available after admin approval
 curl -X POST http://localhost:3000/admin/identity/<id>/approve \
   -H "Authorization: Bearer <admin_token>"
 ```
 
-### 4.2 充值与转账
+### 4.2 Top-up and transfer
 
 ```bash
-# 充值 100 元
+# Top up 100 yuan
 curl -X POST http://localhost:3000/transactions/recharge \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
@@ -281,7 +264,7 @@ curl -X POST http://localhost:3000/transactions/recharge \
     "idempotencyKey": "recharge_20260101_001"
   }'
 
-# 转账给其他用户
+# Transfer to another user
 curl -X POST http://localhost:3000/transfers \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
@@ -289,32 +272,32 @@ curl -X POST http://localhost:3000/transfers \
     "toUserId": "target_user_uuid",
     "amount": 50.00,
     "payPassword": "pay_password_123",
-    "remark": "晚餐费"
+    "remark": "dinner"
   }'
 ```
 
-### 4.3 商户接入开放 API
+### 4.3 Merchant open-API integration
 
 ```mermaid
 sequenceDiagram
-    participant Browser as 浏览器
-    participant Merchant as 商户后端
+    participant Browser as Browser
+    participant Merchant as Merchant backend
     participant K as KeBaiPay
-    participant User as 终端用户
+    participant User as End user
 
-    Browser->>Merchant: 1. 下单请求
-    Merchant->>Merchant: 2. 生成订单号
-    Merchant->>K: 3. POST /open-api/v1/orders<br/>(HMAC 签名)
-    K-->>Merchant: 4. 返回 cashierUrl
-    Merchant-->>Browser: 5. 返回 cashierUrl
-    Browser->>K: 6. 跳转到收银台付款
-    User->>K: 7. 输入支付密码确认
-    K->>K: 8. 复式记账三表联动
+    Browser->>Merchant: 1. Place order
+    Merchant->>Merchant: 2. Generate order no.
+    Merchant->>K: 3. POST /open-api/v1/orders<br/>(HMAC signed)
+    K-->>Merchant: 4. Returns cashierUrl
+    Merchant-->>Browser: 5. Returns cashierUrl
+    Browser->>K: 6. Redirect to cashier
+    User->>K: 7. Enter payment password
+    K->>K: 8. Double-entry tri-table linkage
     K->>Merchant: 9. POST callbackUrl (PAID)
-    Merchant->>Merchant: 10. 验签 + 更新本地订单
+    Merchant->>Merchant: 10. Verify signature + update local order
 ```
 
-签名算法（HMAC-SHA256）：
+Signing algorithm (HMAC-SHA256):
 
 ```javascript
 const crypto = require('crypto')
@@ -323,9 +306,9 @@ const signString = [
   method,           // 'POST'
   path,             // '/open-api/v1/orders'
   rawBody,          // JSON.stringify(requestBody)
-  timestamp,        // Date.now() 毫秒
-  nonce,            // 唯一随机字符串
-  appId             // 商户应用 App ID
+  timestamp,        // Date.now() in ms
+  nonce,            // unique random string
+  appId             // merchant app ID
 ].join('\n')
 
 const signature = crypto
@@ -333,92 +316,92 @@ const signature = crypto
   .update(signString)
   .digest('hex')
 
-// 必需请求头：
+// Required headers:
 // X-App-Id: <app_id>
 // X-Timestamp: <timestamp>
 // X-Nonce: <nonce>
 // X-Signature: <signature>
 ```
 
-### 4.4 管理员对账与差异处理
+### 4.4 Admin reconciliation and discrepancy handling
 
 ```mermaid
 flowchart LR
-    A[拉取渠道对账单<br/>fetchStatement] --> B[交叉匹配<br/>matchStatement]
-    B --> C{差异类型}
-    C -->|金额不一致| D[AMOUNT_MISMATCH]
-    C -->|渠道缺失| E[MISSING_IN_CHANNEL]
-    C -->|平台缺失| F[MISSING_IN_PLATFORM]
-    C -->|状态不一致| G[STATUS_MISMATCH]
-    D --> H[指派处理人<br/>assignDifference]
+    A[Fetch statement<br/>fetchStatement] --> B[Cross-match<br/>matchStatement]
+    B --> C{Discrepancy type}
+    C -->|Amount mismatch| D[AMOUNT_MISMATCH]
+    C -->|Missing in channel| E[MISSING_IN_CHANNEL]
+    C -->|Missing in platform| F[MISSING_IN_PLATFORM]
+    C -->|Status mismatch| G[STATUS_MISMATCH]
+    D --> H[Assign owner<br/>assignDifference]
     E --> H
     F --> H
     G --> H
-    H --> I[调查处理]
-    I --> J{处理结果}
-    J -->|已核实| K[RESOLVED]
-    J -->|误报| L[IGNORED]
+    H --> I[Investigate]
+    I --> J{Result}
+    J -->|Verified| K[RESOLVED]
+    J -->|False positive| L[IGNORED]
 ```
 
 ---
 
-## 五、系统架构
+## Architecture
 
-### 5.1 整体架构图
+### 5.1 Overall architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         客户端 / 浏览器                              │
-│   H5 钱包 │ 商户收银台 │ 管理后台 SPA │ 商户后端 SDK               │
+│                         Client / Browser                            │
+│   H5 wallet │ Merchant cashier │ Admin SPA │ Merchant backend SDK   │
 └───────────────────────────┬─────────────────────────────────────────┘
                             │ HTTPS
                             ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│  Nginx 反向代理 (TLS 终止 / X-Forwarded-For)                       │
+│  Nginx reverse proxy (TLS termination / X-Forwarded-For)            │
 └───────────────────────────┬─────────────────────────────────────────┘
                             ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                  NestJS 应用 (port 3000)                            │
+│                  NestJS application (port 3000)                    │
 │ ┌─────────────────────────────────────────────────────────────────┐ │
-│ │  全局中间件/守卫/拦截器/过滤器                                   │ │
+│ │  Global middleware / guards / interceptors / filters            │ │
 │ │  Helmet · Compression · ValidationPipe · AllExceptionsFilter    │ │
 │ │  ResponseTransformInterceptor · ThrottlerGuard · RequestLog     │ │
 │ └─────────────────────────────────────────────────────────────────┘ │
 │ ┌───────────────────┐ ┌──────────────────┐ ┌────────────────────┐ │
-│ │  用户端 (C)        │ │  商户端 (B)        │ │  管理端 (A)         │ │
-│ │  18 个模块         │ │  3 个模块         │ │  19 个模块          │ │
-│ │  JWT_USER_SECRET   │ │  HMAC 签名        │ │  JWT_ADMIN_SECRET  │ │
+│ │  Consumer (C)     │ │  Merchant (B)    │ │  Admin (A)          │ │
+│ │  18 modules       │ │  3 modules       │ │  19 modules         │ │
+│ │  JWT_USER_SECRET  │ │  HMAC signing    │ │  JWT_ADMIN_SECRET   │ │
 │ └───────────────────┘ └──────────────────┘ └────────────────────┘ │
 │ ┌─────────────────────────────────────────────────────────────────┐ │
-│ │  交叉基础层                                                       │ │
+│ │  Shared base layer                                              │ │
 │ │  PrismaService · RedisService · CryptoService · AuditService   │ │
 │ │  RiskEngineService · NotificationsService · SmsService          │ │
 │ └─────────────────────────────────────────────────────────────────┘ │
-└────────────┬───────────────────────────────────┬────────────────────┘
-             ▼                                   ▼
+└────────────┬───────────────────────────┬────────────────────────────┘
+             ▼                           ▼
 ┌────────────────────────┐            ┌────────────────────────┐
 │  PostgreSQL 16         │            │  Redis 7               │
-│  ─ 47 个数据模型        │            │  ─ 分布式锁             │
-│  ─ 复式记账三表联动     │            │  ─ 滑动窗口限流         │
-│  ─ 链式 hash 审计日志   │            │  ─ nonce 防重放         │
+│  ─ 52 data models       │            │  ─ distributed lock     │
+│  ─ double-entry linkage │            │  ─ sliding-window rate │
+│  ─ chained-hash audit   │            │  ─ nonce replay guard  │
 └────────────────────────┘            └────────────────────────┘
              ▲
              │
 ┌────────────────────────────────────────────────────────────────────┐
-│  外部渠道 / 三方服务                                                │
-│  微信支付 │ 支付宝 │ 阿里云/腾讯/华为短信 │ SMTP │ OTLP Collector   │
+│  External channels / third-party services                          │
+│  WeChat Pay │ Alipay │ Ali/Tencent/Huawei SMS │ SMTP │ OTLP Collector │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-### 5.2 复式记账模型
+### 5.2 Double-entry bookkeeping model
 
 ```
-用户发起资金操作
+User initiates fund operation
        │
        ▼
 ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
 │ TransactionOrder │───▶│   AccountLedger  │◀──▶│      Bill        │
-│  (订单主表)       │    │   (账户流水)      │    │   (用户账单)     │
+│  (order master)   │    │   (account flow) │    │   (user bill)    │
 │                  │    │                  │    │                  │
 │ - orderNo        │    │ - type           │    │ - type           │
 │ - type (RECHARGE │    │ - direction      │    │ - direction      │
@@ -428,16 +411,16 @@ flowchart LR
 └──────────────────┘    │ - refId          │    └──────────────────┘
                         └──────────────────┘
        │
-       ▼ 所有写操作包入 $transaction
+       ▼ all writes wrapped in $transaction
        │
        ▼
-   Redis 分布式锁
+   Redis distributed lock
    redis.withLock(key, ttl, fn)
 ```
 
-### 5.3 状态机速览
+### 5.3 State machines
 
-#### 提现订单状态机
+#### Withdrawal order
 
 ```
 PENDING ──admin approve──▶ APPROVED ──channel success──▶ SUCCESS
@@ -447,15 +430,15 @@ PENDING ──admin approve──▶ APPROVED ──channel success──▶ SUC
    └──admin reject──▶ REJECTED
 ```
 
-#### 红包状态机
+#### Red packet
 
 ```
-PENDING ──领取人数>0──▶ PARTIALLY_RECEIVED ──全部领完──▶ RECEIVED
+PENDING ──claims>0──▶ PARTIALLY_RECEIVED ──all claimed──▶ RECEIVED
    │                                                       ▲
-   └──过期未领完──────────────────────────────────────────▶ EXPIRED
+   └──expired, not all claimed────────────────────────────▶ EXPIRED
 ```
 
-#### 担保交易状态机
+#### Escrow transaction
 
 ```
 CREATED ──buyer pay──▶ PAID ──seller ship──▶ SHIPPED ──buyer confirm──▶ COMPLETED
@@ -467,7 +450,7 @@ CREATED ──buyer pay──▶ PAID ──seller ship──▶ SHIPPED ──b
                 └──────────refund──▶ REFUNDED ◀────────────┘
 ```
 
-#### 多平台对账差异处理状态机
+#### Multi-channel reconciliation discrepancy
 
 ```
 PENDING ──assignDifference──▶ INVESTIGATING ──resolveDifference──▶ RESOLVED / IGNORED
@@ -475,146 +458,152 @@ PENDING ──assignDifference──▶ INVESTIGATING ──resolveDifference─
 
 ---
 
-## 六、项目结构
+## Project structure
 
 ```
 kebaipay/
 ├── src/
-│   ├── auth/                 用户 JWT 鉴权
-│   ├── users/                用户、实名、支付密码、绑定手机/邮箱
-│   ├── accounts/             账户余额、资金流水（复式记账）
-│   ├── transactions/         充值、交易订单
-│   ├── transfers/            用户间转账（幂等键防重）
-│   ├── withdrawals/          提现（含并发测试）
-│   ├── red-packets/          红包（二倍均值法）
-│   ├── qr-codes/             收款码（个人/固定）
-│   ├── bills/                账单
-│   ├── bank-cards/           银行卡管理
-│   ├── escrow/               担保交易（S2）
-│   ├── batch-transfers/      批量转账
-│   ├── subscriptions/        订阅
-│   ├── splits/               分账
-│   ├── coupons/              优惠券
-│   ├── referrals/            邀请返现
-│   ├── messages/             消息中心
-│   ├── invoices/             发票
-│   ├── merchants/            商户入驻、应用与配置
-│   ├── cashier/              统一收银台
-│   ├── open-api/             开放 API（HMAC 签名认证）
-│   ├── admin/                管理后台（含权限守卫）
-│   ├── finance/              财务统计与对账
-│   ├── channel-reconciliation/ 多平台对账聚合（S5）
-│   ├── risk/                 风控引擎（滑动窗口）
-│   ├── risk-audit/           AI 风控审计（S3）
-│   ├── custom-rules/         自定义规则模板
-│   ├── payment-channels/     微信/支付宝/Mock 渠道
-│   ├── webhooks/             支付渠道回调
-│   ├── redis/                Redis 封装（分布式锁 / 滑动窗口）
-│   ├── crypto/               AES-256-GCM 加解密
-│   ├── security/             启动安全校验
-│   ├── health/               健康检查（存活/就绪/渠道）
-│   ├── metrics/              Prometheus /metrics
-│   ├── notifications/        邮件通知 + 结算调度
-│   ├── audit/                审计日志（链式 hash）
-│   ├── sms/                  短信（阿里/腾讯/华为/mock）
-│   ├── prisma/               Prisma 客户端
-│   ├── common/               中间件、拦截器、工具函数
-│   ├── app.module.ts         根模块
-│   ├── main.ts               启动入口
-│   └── tracing.ts            OpenTelemetry 接入
-├── public/                   H5 钱包静态页面（同源托管）
+│   ├── auth/                 user JWT auth
+│   ├── users/                user, KYC, payment password, bind phone/email
+│   ├── accounts/             balance, fund flows (double-entry)
+│   ├── transactions/         top-up, transaction orders
+│   ├── transfers/            user-to-user transfers (idempotency key)
+│   ├── withdrawals/          withdrawals (incl. concurrency tests)
+│   ├── red-packets/          red packets (double-mean algorithm)
+│   ├── qr-codes/             collection codes (personal/fixed)
+│   ├── bills/                 bills
+│   ├── bank-cards/            bank card management
+│   ├── escrow/                escrow (S2)
+│   ├── batch-transfers/       batch transfers
+│   ├── subscriptions/         subscriptions
+│   ├── splits/                splits
+│   ├── coupons/               coupons
+│   ├── referrals/             referral cashback
+│   ├── messages/              message center
+│   ├── invoices/              invoices
+│   ├── merchants/             merchant onboarding, apps, config
+│   ├── cashier/               unified cashier
+│   ├── open-api/              open API (HMAC signing)
+│   ├── admin/                 admin console (with permission guards)
+│   ├── finance/               finance stats and reconciliation
+│   ├── channel-reconciliation/ multi-channel reconciliation (S5)
+│   ├── risk/                  risk engine (sliding window)
+│   ├── risk-audit/            AI risk audit (S3)
+│   ├── custom-rules/          custom rule templates
+│   ├── payment-channels/       WeChat/Alipay/Mock channels
+│   ├── webhooks/              payment channel callbacks
+│   ├── redis/                 Redis wrapper (distributed lock / sliding window)
+│   ├── crypto/                AES-256-GCM encryption
+│   ├── security/              startup security validation
+│   ├── health/                health checks (liveness/readiness/channels)
+│   ├── metrics/               Prometheus /metrics
+│   ├── notifications/         email notifications + settlement schedule
+│   ├── audit/                 audit logs (chained hash)
+│   ├── sms/                   SMS (Ali/Tencent/Huawei/mock)
+│   ├── agent/                 AI agent layer (v2.1.0)
+│   ├── prisma/                Prisma client
+│   ├── common/                middleware, interceptors, utilities
+│   ├── app.module.ts          root module
+│   ├── main.ts                bootstrap entry
+│   └── tracing.ts             OpenTelemetry setup
+├── public/                    H5 wallet static pages (same-origin)
 ├── prisma/
-│   ├── schema.prisma         47 个数据模型定义
-│   ├── migrations/           SQL 迁移文件
-│   └── seed.ts               初始化管理员 + 测试数据
-├── test/                     E2E 测试
-├── e2e_check.py              Python E2E 自动化测试脚本
-├── docs/                     完整文档集
-├── docker-compose.yml        生产部署
-├── docker-compose.dev.yml    开发环境（PG + Redis）
-├── Dockerfile                多阶段构建
-├── .env.example              环境变量示例
-├── package.json              依赖与脚本
-└── README.md                 本文件
+│   ├── schema.prisma          52 data models
+│   ├── migrations/            SQL migration files
+│   └── seed.ts                init admin + test data
+├── test/                      E2E tests
+├── e2e_check.py               Python E2E automation script
+├── docs/                      full documentation
+├── docker-compose.yml         production deployment
+├── docker-compose.dev.yml     dev environment (PG + Redis)
+├── Dockerfile                 multi-stage build
+├── .env.example               environment variable sample
+├── package.json               dependencies and scripts
+└── README.md                  this file
 ```
 
 ---
 
-## 七、API 概览
+## API overview
 
-完整接口列表详见 [docs/API_REFERENCE.md](docs/API_REFERENCE.md)。
+The full endpoint list is in [docs/API_REFERENCE.md](docs/API_REFERENCE.md).
 
-| 端点 | 说明 | 认证方式 |
+| Endpoint | Description | Auth |
 |---|---|---|
-| `POST /auth/register` | 用户注册 | 无 |
-| `POST /auth/login` | 用户登录 | 无 |
-| `GET /users/me` | 当前用户信息 | 用户 JWT |
-| `POST /transactions/recharge` | 充值 | 用户 JWT |
-| `POST /transfers` | 转账 | 用户 JWT |
-| `POST /withdrawals` | 提现申请 | 用户 JWT |
-| `POST /red-packets` | 发红包 | 用户 JWT |
-| `POST /cashier/orders` | 创建收银台订单 | 用户 JWT |
-| `POST /open-api/v1/orders` | 商户创建订单 | HMAC 签名 |
-| `POST /admin/auth/login` | 管理员登录 | 无 |
-| `GET /admin/dashboard` | 后台概览 | 管理员 JWT + 权限 |
-| `POST /admin/channel-reconciliation/statements/fetch` | 拉取渠道对账单 | 管理员 JWT + reconciliation 权限 |
-| `POST /admin/risk-audit/events/:id/review` | AI 风控审计复核 | 管理员 JWT + risk 权限 |
-| `GET /metrics` | Prometheus 指标 | 无 |
-| `GET /health` | 存活探针 | 无 |
-| `GET /health/ready` | 就绪探针 | 无 |
+| `POST /auth/register` | User registration | none |
+| `POST /auth/login` | User login | none |
+| `GET /users/me` | Current user info | user JWT |
+| `POST /transactions/recharge` | Top up | user JWT |
+| `POST /transfers` | Transfer | user JWT |
+| `POST /withdrawals` | Submit withdrawal | user JWT |
+| `POST /red-packets` | Send red packet | user JWT |
+| `POST /cashier/orders` | Create cashier order | user JWT |
+| `POST /open-api/v1/orders` | Merchant create order | HMAC signing |
+| `POST /admin/auth/login` | Admin login | none |
+| `GET /admin/dashboard` | Admin overview | admin JWT + permission |
+| `POST /admin/channel-reconciliation/statements/fetch` | Fetch channel statement | admin JWT + reconciliation permission |
+| `POST /admin/risk-audit/events/:id/review` | AI risk audit review | admin JWT + risk permission |
+| `GET /metrics` | Prometheus metrics | none |
+| `GET /health` | Liveness probe | none |
+| `GET /health/ready` | Readiness probe | none |
 
-完整 **204 个 API** 列表参见 [docs/API_REFERENCE.md](docs/API_REFERENCE.md)。
+The full 214-endpoint list is in [docs/API_REFERENCE.md](docs/API_REFERENCE.md).
 
 ---
 
-## 八、文档导航
+## Documentation
 
-| 文档 | 内容 |
+| Document | Contents |
 |---|---|
-| [docs/QUICKSTART.md](docs/QUICKSTART.md) | 商户 5 分钟接入教程 |
-| [docs/API_REFERENCE.md](docs/API_REFERENCE.md) | 完整 API 端点说明 |
-| [docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md) | 管理后台操作手册 |
-| [docs/MERCHANT_GUIDE.md](docs/MERCHANT_GUIDE.md) | 商户接入指南 |
-| [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | 用户端功能说明 |
-| [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) | 开发者文档（架构/认证/错误码） |
-| [docs/SDK_GUIDE.md](docs/SDK_GUIDE.md) | 开放 API SDK 使用说明 |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | 完整部署文档 |
-| [docs/TROUBLESHOOT.md](docs/TROUBLESHOOT.md) | 常见问题排查 |
-| [docs/CHANGELOG.md](docs/CHANGELOG.md) | 版本更新日志 |
-| [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md) | 项目进度与路线图 |
-| [docs/sms-integration.md](docs/sms-integration.md) | 短信服务商接入 |
+| [docs/QUICKSTART.md](docs/QUICKSTART.md) | 5-minute merchant onboarding |
+| [docs/API_REFERENCE.md](docs/API_REFERENCE.md) | Full API endpoint reference |
+| [docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md) | Admin console manual |
+| [docs/MERCHANT_GUIDE.md](docs/MERCHANT_GUIDE.md) | Merchant onboarding guide |
+| [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Consumer feature guide |
+| [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) | Developer docs (architecture/auth/error codes) |
+| [docs/SDK_GUIDE.md](docs/SDK_GUIDE.md) | Open API SDK usage |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Full deployment docs |
+| [docs/TROUBLESHOOT.md](docs/TROUBLESHOOT.md) | Troubleshooting |
+| [docs/CHANGELOG.md](docs/CHANGELOG.md) | Changelog |
+| [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md) | Roadmap and progress |
+| [docs/sms-integration.md](docs/sms-integration.md) | SMS provider integration |
 
 ---
 
-## 九、环境变量速查表
+## Environment variables
 
-完整说明详见 [.env.example](.env.example)。**生产环境必填** 项加粗：
+Full reference in [.env.example](.env.example). **Required in production** are bold:
 
-| 变量 | 必填 | 默认 | 说明 |
+| Variable | Required | Default | Description |
 |---|:---:|---|---|
-| `POSTGRES_PASSWORD` | **是** | - | PostgreSQL 密码 |
-| `JWT_USER_SECRET` | **是** | - | 用户端 JWT 密钥（32+ 字符） |
-| `JWT_ADMIN_SECRET` | **是** | - | 管理端 JWT 密钥（必须与上面不同） |
-| `ADMIN_DEFAULT_PASSWORD` | **是** | - | 管理员初始密码（8+ 字符） |
-| `ENCRYPTION_KEY` | **是** | - | AES 加密密钥（32+ 字符） |
-| `REDIS_PASSWORD` | **是** | - | Redis 密码 |
-| `DATABASE_URL` | 裸机必填 | - | PostgreSQL 连接串 |
-| `REDIS_URL` | 生产必填 | - | Redis 连接串 |
-| `CORS_ORIGINS` | 生产必填 | localhost | 跨域来源（逗号分隔） |
-| `RECHARGE_NOTIFY_URL` | 否 | - | 充值回调地址（生产 https） |
-| `CASHIER_BASE_URL` | 否 | localhost:3000 | 收银台对外地址 |
-| `NODE_ENV` | 否 | development | `production` 启用安全校验 + 隐藏 Swagger |
-| `PORT` | 否 | 3000 | 监听端口 |
-| `SMS_PROVIDER` | 否 | mock | aliyun/tencent/huawei/mock |
-| `SMTP_HOST/PORT/USER/PASS/FROM` | 否 | - | 邮件通知配置 |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | 否 | - | OpenTelemetry 导出端点 |
-| `SENTRY_DSN` | 否 | - | Sentry 异常告警 DSN |
+| `POSTGRES_PASSWORD` | **yes** | - | PostgreSQL password |
+| `JWT_USER_SECRET` | **yes** | - | User JWT secret (32+ chars) |
+| `JWT_ADMIN_SECRET` | **yes** | - | Admin JWT secret (must differ from above) |
+| `ADMIN_DEFAULT_PASSWORD` | **yes** | - | Initial admin password (8+ chars) |
+| `ENCRYPTION_KEY` | **yes** | - | AES encryption key (32+ chars) |
+| `REDIS_PASSWORD` | **yes** | - | Redis password |
+| `JWT_AGENT_SECRET` | **yes** | - | Agent JWT secret (separate from above) |
+| `DATABASE_URL` | bare metal | - | PostgreSQL connection string |
+| `REDIS_URL` | production | - | Redis connection string |
+| `CORS_ORIGINS` | production | localhost | CORS origins (comma-separated) |
+| `RECHARGE_NOTIFY_URL` | no | - | Top-up callback URL (https in production) |
+| `CASHIER_BASE_URL` | no | localhost:3000 | Cashier external URL |
+| `NODE_ENV` | no | development | `production` enables security checks + hides Swagger |
+| `PORT` | no | 3000 | Listening port |
+| `SMS_PROVIDER` | no | mock | aliyun / tencent / huawei / mock |
+| `SMTP_HOST/PORT/USER/PASS/FROM` | no | - | Email notification config |
+| `LLM_PROVIDER` | no | mock | mock / openai / deepseek / qwen / kimi / moonshot |
+| `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` | no | - | LLM service config (OpenAI-compatible) |
+| `AGENT_MAX_AMOUNT_PER_OP` | no | 50000 | Per-op agent limit (fen) |
+| `AGENT_MAX_AMOUNT_PER_DAY` | no | 200000 | Per-day agent limit (fen) |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | no | - | OpenTelemetry exporter endpoint |
+| `SENTRY_DSN` | no | - | Sentry alert DSN |
 
 ---
 
-## 十、Nginx 反向代理 + HTTPS
+## Nginx reverse proxy + HTTPS
 
-生产环境推荐挂 Nginx 做 TLS 终止：
+In production, put Nginx in front for TLS termination:
 
 ```nginx
 upstream kebaipay {
@@ -656,7 +645,7 @@ server {
 }
 ```
 
-用 Let's Encrypt 申请免费证书：
+Use Let's Encrypt for a free certificate:
 
 ```bash
 apt install certbot python3-certbot-nginx
@@ -665,121 +654,121 @@ certbot --nginx -d pay.yourdomain.com
 
 ---
 
-## 十一、运维命令速查
+## Operations cheat sheet
 
-### Docker Compose 模式
+### Docker Compose
 
 ```bash
-docker compose ps                                    # 容器状态
-docker compose logs -f app                           # 实时日志
-docker compose restart app                           # 重启应用
-docker compose down                                  # 停止所有
-docker compose pull && docker compose up -d --build # 更新代码重新部署
-docker compose exec app sh                           # 进入容器
-docker compose exec postgres psql -U postgres -d kebaipay   # 进数据库
+docker compose ps                                    # container status
+docker compose logs -f app                           # live logs
+docker compose restart app                           # restart app
+docker compose down                                  # stop everything
+docker compose pull && docker compose up -d --build # update & redeploy
+docker compose exec app sh                           # shell into container
+docker compose exec postgres psql -U postgres -d kebaipay   # connect to DB
 ```
 
-### 数据库备份与恢复
+### Database backup and restore
 
 ```bash
-# 备份
+# Backup
 docker compose exec -T postgres pg_dump -U postgres kebaipay > backup_$(date +%Y%m%d).sql
 
-# 恢复
+# Restore
 cat backup_20260721.sql | docker compose exec -T postgres psql -U postgres -d kebaipay
 
-# 定时每日备份（crontab -e）
+# Daily cron backup (crontab -e)
 0 3 * * * cd /opt/kebaipay && docker compose exec -T postgres pg_dump -U postgres kebaipay | gzip > /backups/kebaipay_$(date +\%Y\%m\%d).sql.gz
 ```
 
-### 健康检查端点
+### Health check endpoints
 
-| 端点 | 说明 |
+| Endpoint | Description |
 |---|---|
-| `GET /health` | 存活探针（liveness） |
-| `GET /health/ready` | 就绪探针（DB + Redis 连通性） |
-| `GET /health/channels` | 支付渠道状态 |
-| `GET /health/channels/summary` | 渠道健康摘要 |
-| `GET /health/schedules` | 调度任务状态 |
-| `GET /metrics` | Prometheus 指标 |
-| `GET /api/docs` | Swagger 文档（仅非生产） |
+| `GET /health` | Liveness probe |
+| `GET /health/ready` | Readiness probe (DB + Redis connectivity) |
+| `GET /health/channels` | Payment channel status |
+| `GET /health/channels/summary` | Channel health summary |
+| `GET /health/schedules` | Scheduled-task status |
+| `GET /metrics` | Prometheus metrics |
+| `GET /api/docs` | Swagger docs (non-production only) |
 
 ---
 
-## 十二、测试
+## Testing
 
 ```bash
-npm run test           # 1023 个单元测试
-npm run test:e2e       # 324 个端到端测试
-npm run test:cov       # 测试覆盖率报告
-npm run lint           # TypeScript 类型检查
+npm run test           # 1023 unit tests
+npm run test:e2e       # end-to-end tests
+npm run test:cov       # coverage report
+npm run lint           # TypeScript type check
 ```
 
 ---
 
-## 十三、开发约定
+## Development conventions
 
-- **金额单位**：数据库存「分」(Fen)，接口传「元」(Yuan)，DTO 自动转换
-- **资金操作**：必须包入 Prisma `$transaction` 事务 + Redis 分布式锁
-- **DTO 校验**：`class-validator` + `whitelist: true` + `forbidNonWhitelisted: true`
-- **敏感数据**：身份证、银行卡号用 AES-256-GCM 加密入库 + SHA-256 hash 唯一约束
-- **审计日志**：所有管理员操作必须记 AuditLog，敏感操作记 AdminOperationLog（链式 hash 防篡改）
-- **幂等性**：所有资金类接口支持 `idempotencyKey`，配合 `@unique` 索引保证不重复
-- **错误码**：KB001-KB999 分段管理，详见 [docs/API_REFERENCE.md#错误码表](docs/API_REFERENCE.md)
-- **限流**：Throttler 全局 100/min，登录注册 10/min，开放 API 30/min
-- **测试**：每个 service 必须有 .spec.ts，每个 controller 必须有 .controller.spec.ts
+- **Money unit**: stored as `fen` in DB, transmitted as `yuan` in APIs; DTOs convert automatically
+- **Fund operations**: must be wrapped in a Prisma `$transaction` plus a Redis distributed lock
+- **DTO validation**: `class-validator` + `whitelist: true` + `forbidNonWhitelisted: true`
+- **Sensitive data**: ID cards and bank card numbers are encrypted at rest with AES-256-GCM and deduplicated via SHA-256 hash
+- **Audit logs**: all admin actions are recorded in `AuditLog`; sensitive actions in `AdminOperationLog` (chained-hash tamper protection)
+- **Idempotency**: all fund endpoints accept `idempotencyKey`, backed by a `@unique` index to prevent duplicates
+- **Error codes**: KB001-KB999, segmented — see [docs/API_REFERENCE.md](docs/API_REFERENCE.md)
+- **Rate limiting**: Throttler global 100/min, login/register 10/min, open API 30/min
+- **Tests**: every service has a `.spec.ts`; every controller has a `.controller.spec.ts`
 
 ---
 
-## 十四、常见部署错误对照
+## Common deployment errors
 
-完整版见 [docs/TROUBLESHOOT.md](docs/TROUBLESHOOT.md)。
+Full list in [docs/TROUBLESHOOT.md](docs/TROUBLESHOOT.md).
 
-| 错误现象 | 原因 | 解决 |
+| Symptom | Cause | Fix |
 |---|---|---|
-| SecurityValidator 拒绝启动 | 6 个 secret 还是默认值 | 改 `.env` 中的 6 个必填项 |
-| `CORS_ORIGINS is not configured` | 生产环境没配 CORS | `.env` 改成 `https://your-domain.com` |
-| Prisma 连不上 DB | PG 容器没起 / 密码不一致 | `docker compose ps postgres` |
-| 端口 3000 被占用 | 其他程序占了 | 改 `docker-compose.yml` 端口映射 |
-| 管理员登录密码错误 | 改密码没重新 seed | 删 AdminUser 表再 `prisma db seed` |
-| 用户登录 429 | 暴力破解锁定 | 等 15 分钟自动解锁，或清 Redis 计数 |
-| `Failed to acquire lock` | Redis 锁未释放 | 等几秒重试，或 `docker compose restart redis` |
-| Swagger 文档打不开 | 生产环境隐藏 | 改 `NODE_ENV=development` 重启 |
+| SecurityValidator refuses startup | 6 secrets still default | change the 6 required entries in `.env` |
+| `CORS_ORIGINS is not configured` | CORS not set in production | set `.env` to `https://your-domain.com` |
+| Prisma cannot reach DB | PG container down / password mismatch | `docker compose ps postgres` |
+| Port 3000 occupied | another process holds it | change port mapping in `docker-compose.yml` |
+| Admin login password wrong | password changed without re-seeding | drop the `AdminUser` table then `prisma db seed` |
+| User login 429 | brute-force lockout | wait 15 min for auto-unlock, or clear the Redis counter |
+| `Failed to acquire lock` | Redis lock not released | retry after a few seconds, or `docker compose restart redis` |
+| Swagger docs won't open | hidden in production | set `NODE_ENV=development` and restart |
 
 ---
 
-## 十五、安全注意事项
+## Security notes
 
-1. **6 个 secret 必须改**：生产环境用 `SecurityValidatorService` 强校验，留默认值会拒绝启动
-2. **Redis 必须配**：分布式锁、滑动窗口限流、防重放都依赖 Redis
-3. **生产环境 HTTPS**：`RECHARGE_NOTIFY_URL` 必须是 https，否则微信/支付宝回调会失败
-4. **mock 渠道禁用**：生产环境 `SecurityValidator` 会拒绝启用 mock 渠道
-5. **`.env` 不入仓库**：已在 `.gitignore`，部署时一定要在服务器上创建
-6. **首次部署后必跑 seed**：`npx prisma db seed` 创建管理员账号
-7. **Swagger 仅非生产**：`NODE_ENV=production` 自动隐藏 `/api/docs`
-8. **请求体大小限制**：1MB，防止 DoS
+1. **6 secrets must be changed**: production startup is hard-checked by `SecurityValidatorService`; default values are rejected
+2. **Redis is mandatory**: distributed locks, sliding-window rate limiting, and replay protection all rely on Redis
+3. **HTTPS in production**: `RECHARGE_NOTIFY_URL` must be https, otherwise WeChat/Alipay callbacks will fail
+4. **Mock channel disabled**: `SecurityValidator` refuses to enable mock channels in production
+5. **`.env` is not committed**: ignored in `.gitignore`; create it on the server during deployment
+6. **Run seed after first deploy**: `npx prisma db seed` creates the admin account
+7. **Swagger non-production only**: `NODE_ENV=production` hides `/api/docs`
+8. **Request body size limit**: 1MB to mitigate DoS
 
 ---
 
-## 十六、License
+## License
 
-MIT License — 详见 [LICENSE](./LICENSE)
+MIT License — see [LICENSE](./LICENSE)
 
 Copyright (c) 2026 KeBaiPay Contributors
 
-## 十七、贡献者
+## Contributors
 
-本项目由以下人员共同维护，代码同步托管于 GitHub 与 gitcode 双平台：
+This project is maintained by the following people, with code mirrored on both GitHub and gitcode:
 
-| 平台 | 角色 | 主要贡献 |
+| Platform | Role | Main contributions |
 |---|---|---|
-| [@weed33834](https://github.com/weed33834)（GitHub） · [@badhope](https://gitcode.com/badhope)（gitcode） | 项目负责人 / 架构师 | 整体架构、资金安全、API 契约、风控引擎、AI 智能体设计 |
-| [@KEBAI-CN](https://github.com/KEBAI-CN) | 联合开发者 | 功能开发、测试用例、文档维护、前端实现、LLM 接入联调 |
+| [@weed33834](https://github.com/weed33834) (GitHub) · [@badhope](https://gitcode.com/badhope) (gitcode) | Lead / architect | overall architecture, fund safety, API contracts, risk engine, AI agent design |
+| [@KEBAI-CN](https://github.com/KEBAI-CN) | Co-developer | feature development, test cases, docs, frontend, LLM integration |
 
-详见 [CONTRIBUTING.md](./CONTRIBUTING.md) 和 [docs/TEAM.md](docs/TEAM.md)。
+See [CONTRIBUTING.md](./CONTRIBUTING.md) and [docs/TEAM.md](docs/TEAM.md).
 
-## 十八、技术支持
+## Support
 
-- API 文档（开发环境）：http://your-server:3000/api/docs
-- 完整文档：[docs/](docs/) 目录
-- 问题排查：[docs/TROUBLESHOOT.md](docs/TROUBLESHOOT.md)
+- API docs (dev environment): http://your-server:3000/api/docs
+- Full documentation: [docs/](docs/) directory
+- Troubleshooting: [docs/TROUBLESHOOT.md](docs/TROUBLESHOOT.md)
